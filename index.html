@@ -11,9 +11,14 @@
     #editor:focus { outline: none; }
     .is-dirty-dot { width: 8px; height: 8px; background: #f59e0b; border-radius: 50%; display: none; margin-left: 8px; }
     .is-dirty .is-dirty-dot { display: inline-block; }
-    /* Hide scrollbars for a cleaner UI */
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    
+    #previewWrap svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
   </style>
 </head>
 <body class="bg-slate-100 text-slate-900 h-screen overflow-hidden font-sans">
@@ -76,74 +81,52 @@
 
         <!-- Render Viewport -->
         <div id="previewContainer" class="flex-1 overflow-auto p-12 flex items-start justify-center bg-slate-200/50 scroll-smooth no-scrollbar">
-          <div id="previewWrap" class="bg-white shadow-2xl border border-slate-300 transition-all duration-300 origin-top overflow-hidden">
-            <!-- Dynamic SVG content -->
+          <div id="previewWrap" class="bg-white shadow-2xl border border-slate-300 transition-all duration-300 origin-top overflow-hidden min-h-[100px] min-w-[100px] flex items-center justify-center">
+            <div class="text-slate-400 animate-pulse font-bold text-xs uppercase tracking-widest">Ready to Bake...</div>
           </div>
         </div>
 
         <footer id="message" class="px-6 py-2 bg-white border-t border-slate-200 text-[11px] font-medium text-slate-500 flex items-center justify-between">
           <span class="truncate">Initializing Python environment...</span>
-          <span class="text-slate-300 ml-4 font-mono">v1.1.0</span>
+          <span class="text-slate-300 ml-4 font-mono">v1.1.1</span>
         </footer>
       </section>
     </main>
   </div>
 
   <script>
-    // --- Sample Code for the Editor ---
     const sampleCode = `from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
-from reportlab.pdfbase.pdfmetrics import stringWidth
 
-output = "notable_pages.pdf"
+output = "notebook.pdf"
 page_w, page_h = letter
 
-def bake_notebook_page(c, page_number):
-    """Designs a Cornell-style note page"""
-    # Background & Borders
-    c.setStrokeColorRGB(0.85, 0.85, 0.88)
-    c.setLineWidth(0.7)
+def bake_page(c, num):
+    c.setStrokeColorRGB(0.8, 0.8, 0.85)
+    c.setLineWidth(0.5)
     
-    # Margin Lines
-    left_margin = 1.5 * inch
-    header_height = page_h - 1.25 * inch
-    footer_height = 1.25 * inch
+    # Cornell Layout
+    c.line(1.5*inch, 1.25*inch, 1.5*inch, page_h - 1.25*inch)
+    c.line(0, page_h - 1.25*inch, page_w, page_h - 1.25*inch)
+    c.line(0, 1.25*inch, page_w, 1.25*inch)
     
-    # Vertical Cue Column Line
-    c.line(left_margin, footer_height, left_margin, header_height)
-    # Horizontal Header/Footer lines
-    c.line(0, header_height, page_w, header_height)
-    c.line(0, footer_height, page_w, footer_height)
-    
-    # Dot Grid for Main Content
-    c.setStrokeColorRGB(0.9, 0.9, 0.9)
-    spacing = 0.25 * inch
-    for x in range(int(left_margin + spacing), int(page_w), int(spacing)):
-        for y in range(int(footer_height + spacing), int(header_height), int(spacing)):
-            c.circle(x, y, 0.5, stroke=0, fill=1)
+    # Dot Grid
+    c.setFillColorRGB(0.85, 0.85, 0.9)
+    for x in range(int(1.75*inch), int(page_w - 0.5*inch), int(0.25*inch)):
+        for y in range(int(1.5*inch), int(page_h - 1.5*inch), int(0.25*inch)):
+            c.circle(x, y, 0.4, stroke=0, fill=1)
 
-    # Labels
-    c.setFont("Helvetica-Bold", 10)
-    c.setFillColorRGB(0.5, 0.5, 0.6)
-    c.drawString(0.5 * inch, page_h - 0.75 * inch, "TOPIC:")
-    c.drawString(page_w - 1.5 * inch, page_h - 0.75 * inch, "DATE:")
-    
-    c.setFont("Helvetica-Bold", 8)
-    c.drawString(0.2 * inch, footer_height + 0.2 * inch, "SUMMARY")
-    c.drawString(0.2 * inch, header_height - 0.3 * inch, "CUES / KEYWORDS")
+    c.setFont("Helvetica-Bold", 12)
+    c.setFillColorRGB(0.3, 0.3, 0.4)
+    c.drawString(0.5*inch, page_h - 0.75*inch, f"NOTEBOOK PAGE #{num}")
 
-    # Page indicator at bottom
-    c.setFont("Helvetica", 9)
-    c.drawCentredString(page_w/2, 0.5 * inch, f"- {page_number} -")
-
-# Run generation
 c = canvas.Canvas(output, pagesize=letter)
-for i in range(1, 5):
-    bake_notebook_page(c, i)
+for i in range(1, 4):
+    bake_page(c, i)
     c.showPage()
 c.save()
-print("Baked 4 Cornell-style notebook pages.")`;
+print("Success: 3 pages baked.")`;
 
     const editor = document.getElementById('editor');
     const runBtn = document.getElementById('runBtn');
@@ -166,7 +149,6 @@ print("Baked 4 Cornell-style notebook pages.")`;
     let lastRenderedCode = '';
     let isDirty = false;
 
-    // --- Lightweight ReportLab Compatibility Layer ---
     const pythonBootstrap = `
 import sys, types
 CAPTURED_STDOUT = []
@@ -196,10 +178,7 @@ class _CompatCanvas:
         self._ops.append({'type': 'circle', 'x': float(x), 'y': self._y(float(y)), 'r': float(r), 'stroke': self._stroke_rgb if stroke else None, 'fill': self._fill_rgb if fill else None, 'line_width': self._line_width})
 
     def drawString(self, x, y, text):
-        self._ops.append({'type': 'text', 'x': float(x), 'y': self._y(float(y)), 'text': str(text), 'fill': self._fill_rgb, 'font_name': self._font_name, 'font_size': self._font_size, 'align': 'left'})
-
-    def drawCentredString(self, x, y, text):
-        self._ops.append({'type': 'text', 'x': float(x), 'y': self._y(float(y)), 'text': str(text), 'fill': self._fill_rgb, 'font_name': self._font_name, 'font_size': self._font_size, 'align': 'center'})
+        self._ops.append({'type': 'text', 'x': float(x), 'y': self._y(float(y)), 'text': str(text), 'fill': self._fill_rgb, 'font_name': self._font_name, 'font_size': self._font_size})
 
     def showPage(self):
         self._pages.append(self._ops)
@@ -214,18 +193,15 @@ class _CompatCanvas:
             s = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {self.width} {self.height}">']
             s.append(f'<rect width="100%" height="100%" fill="white"/>')
             for o in ops:
-                rgb_s = o.get('stroke')
-                rgb_f = o.get('fill')
+                rgb_s = o.get('stroke'); rgb_f = o.get('fill')
                 c_s = f'rgb({round(rgb_s[0]*255)},{round(rgb_s[1]*255)},{round(rgb_s[2]*255)})' if rgb_s else 'none'
                 c_f = f'rgb({round(rgb_f[0]*255)},{round(rgb_f[1]*255)},{round(rgb_f[2]*255)})' if rgb_f else 'none'
-                
                 if o['type'] == 'line':
                     s.append(f'<line x1="{o["x1"]}" y1="{o["y1"]}" x2="{o["x2"]}" y2="{o["y2"]}" stroke="{c_s}" stroke-width="{o["line_width"]}" />')
                 elif o['type'] == 'circle':
                     s.append(f'<circle cx="{o["x"]}" cy="{o["y"]}" r="{o["r"]}" stroke="{c_s}" fill="{c_f}" stroke-width="{o["line_width"]}" />')
                 elif o['type'] == 'text':
-                    anchor = 'middle' if o['align'] == 'center' else 'start'
-                    s.append(f'<text x="{o["x"]}" y="{o["y"]}" fill="{c_f}" font-size="{o["font_size"]}" font-family="Helvetica, Arial, sans-serif" text-anchor="{anchor}">{o["text"]}</text>')
+                    s.append(f'<text x="{o["x"]}" y="{o["y"]}" fill="{c_f}" font-size="{o["font_size"]}" font-family="Helvetica, Arial, sans-serif">{o["text"]}</text>')
             s.append('</svg>')
             res.append("".join(s))
         return res
@@ -256,37 +232,34 @@ sys.modules['reportlab.lib.units'] = reportlab.lib.units
         pyStatus.innerHTML = '<div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div> Python Ready';
         pyStatus.className = 'flex items-center gap-2 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[9px] font-bold uppercase tracking-tight';
         editor.value = sampleCode;
+        // Kick off initial render
         renderCode({ pushHistory: false });
       } catch (e) {
         message.textContent = "Initialization failed: " + e.message;
-        pyStatus.innerHTML = '<div class="w-1.5 h-1.5 rounded-full bg-rose-500"></div> Engine Fail';
       }
     }
 
     async function renderCode(opts = {}) {
       if (!pyodide) return;
       const code = editor.value;
-      message.textContent = "Processing layout...";
+      message.textContent = "Baking...";
       runBtn.disabled = true;
-      runBtn.classList.add('opacity-50');
       
       try {
-        // Use a cleaner execution script to reset globals every time
         const fullScript = `
 COMPAT_LAST_CANVAS = None
 CAPTURED_STDOUT = []
 ${pythonBootstrap}
 ${code}
-rendered_pages = COMPAT_LAST_CANVAS.get_svg_pages() if COMPAT_LAST_CANVAS else []
-output_msg = "".join(CAPTURED_STDOUT)
-        `;
-
+res_pages = COMPAT_LAST_CANVAS.get_svg_pages() if COMPAT_LAST_CANVAS else []
+res_logs = "".join(CAPTURED_STDOUT)
+`;
         await pyodide.runPythonAsync(fullScript);
 
-        const pages = pyodide.globals.get('rendered_pages').toJs();
-        const logs = pyodide.globals.get('output_msg');
+        const pages = pyodide.globals.get('res_pages').toJs();
+        const logs = pyodide.globals.get('res_logs');
         
-        if (!pages.length) throw new Error("No pages found. Ensure c.save() is called.");
+        if (!pages || pages.length === 0) throw new Error("No pages generated. Check your code.");
 
         if (opts.pushHistory !== false) renderHistory.push({ code: lastRenderedCode, pages: [...renderedPages] });
         
@@ -296,12 +269,11 @@ output_msg = "".join(CAPTURED_STDOUT)
         setDirty(false);
         showPage();
         updateUI();
-        message.textContent = logs ? logs.trim() : `Baked ${pages.length} pages successfully.`;
+        message.textContent = logs ? logs.trim() : `Ready. (${pages.length} pages)`;
       } catch (e) {
         message.textContent = "Error: " + e.message;
       } finally {
         runBtn.disabled = false;
-        runBtn.classList.remove('opacity-50');
       }
     }
 
@@ -311,20 +283,19 @@ output_msg = "".join(CAPTURED_STDOUT)
       previewWrap.innerHTML = svgContent;
       
       const svgEl = previewWrap.querySelector('svg');
-      const viewBox = svgEl.getAttribute('viewBox').split(' ').map(Number);
-      const w = viewBox[2], h = viewBox[3];
-      
-      // Dynamic Scaling Refinement
-      previewWrap.style.aspectRatio = `${w}/${h}`;
-      previewWrap.style.width = `min(100%, ${w}px)`;
+      if (svgEl) {
+        const viewBox = svgEl.getAttribute('viewBox').split(' ').map(Number);
+        const w = viewBox[2], h = viewBox[3];
+        previewWrap.style.aspectRatio = `${w}/${h}`;
+        previewWrap.style.width = `min(100%, ${w}px)`;
+        previewWrap.classList.remove('flex', 'items-center', 'justify-center');
+      }
     }
 
     function setDirty(val) {
       isDirty = val;
       editorHeader.classList.toggle('is-dirty', val);
       runBtn.querySelector('span').textContent = val ? "Bake Changes!" : "Bake!";
-      if (val) runBtn.classList.add('animate-pulse');
-      else runBtn.classList.remove('animate-pulse');
     }
 
     function updateUI() {
@@ -334,116 +305,49 @@ output_msg = "".join(CAPTURED_STDOUT)
       nextPageBtn.disabled = currentPageIndex === renderedPages.length - 1;
     }
 
-    // --- Interactive Logic ---
     editor.addEventListener('keydown', (e) => {
       if (e.key === 'Tab') {
         e.preventDefault();
-        const start = editor.selectionStart;
-        const end = editor.selectionEnd;
-        editor.value = editor.value.substring(0, start) + "    " + editor.value.substring(end);
-        editor.selectionStart = editor.selectionEnd = start + 4;
+        const s = editor.selectionStart;
+        editor.value = editor.value.substring(0, s) + "    " + editor.value.substring(editor.selectionEnd);
+        editor.selectionStart = editor.selectionEnd = s + 4;
       }
     });
 
-    editor.addEventListener('input', () => {
-      setDirty(editor.value !== lastRenderedCode);
-    });
-
+    editor.addEventListener('input', () => setDirty(editor.value !== lastRenderedCode));
     runBtn.addEventListener('click', () => renderCode());
+    prevPageBtn.addEventListener('click', () => { if(currentPageIndex > 0) { currentPageIndex--; showPage(); updateUI(); } });
+    nextPageBtn.addEventListener('click', () => { if(currentPageIndex < renderedPages.length-1) { currentPageIndex++; showPage(); updateUI(); } });
+    templateBtn.addEventListener('click', () => { editor.value = sampleCode; setDirty(true); });
     
-    prevPageBtn.addEventListener('click', () => { 
-      if(currentPageIndex > 0) { currentPageIndex--; showPage(); updateUI(); } 
-    });
-    
-    nextPageBtn.addEventListener('click', () => { 
-      if(currentPageIndex < renderedPages.length-1) { currentPageIndex++; showPage(); updateUI(); } 
-    });
-    
-    templateBtn.addEventListener('click', () => { 
-      editor.value = sampleCode; 
-      setDirty(true); 
-    });
-    
-    jumpBackBtn.addEventListener('click', () => {
-      if (!renderHistory.length) return;
-      const snapshot = renderHistory.pop();
-      editor.value = snapshot.code;
-      renderedPages = snapshot.pages;
-      lastRenderedCode = snapshot.code;
-      currentPageIndex = 0;
-      setDirty(false);
-      showPage();
-      updateUI();
-      message.textContent = "Rolled back to previous version.";
-    });
-
     downloadBtn.addEventListener('click', () => {
       const blob = new Blob([renderedPages[currentPageIndex]], {type: 'image/svg+xml'});
-      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url; a.download = `notebook-page-${currentPageIndex+1}.svg`;
+      a.href = URL.createObjectURL(blob);
+      a.download = `page-${currentPageIndex+1}.svg`;
       a.click();
-      URL.revokeObjectURL(url);
     });
-
-    // Simple SVG-to-Canvas rasterizer for the PDF
-    async function svgToDataURL(svgString, scale = 4) {
-      return new Promise((resolve) => {
-        const svgBlob = new Blob([svgString], {type: 'image/svg+xml;charset=utf-8'});
-        const url = URL.createObjectURL(svgBlob);
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          canvas.width = img.width * scale;
-          canvas.height = img.height * scale;
-          const ctx = canvas.getContext('2d');
-          ctx.fillStyle = 'white';
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          const data = canvas.toDataURL('image/png');
-          URL.revokeObjectURL(url);
-          resolve(data);
-        };
-        img.src = url;
-      });
-    }
 
     downloadPdfBtn.addEventListener('click', async () => {
-      if (!renderedPages.length) return;
-      const originalText = downloadPdfBtn.textContent;
-      downloadPdfBtn.textContent = "COMPILING...";
-      downloadPdfBtn.disabled = true;
-
-      try {
-        const { jsPDF } = window.jspdf;
-        const firstSvg = renderedPages[0];
-        const parser = new DOMParser();
-        const svgDoc = parser.parseFromString(firstSvg, "image/svg+xml");
-        const viewBox = svgDoc.documentElement.getAttribute('viewBox').split(' ').map(Number);
-        
-        const pdf = new jsPDF({
-          orientation: viewBox[2] > viewBox[3] ? 'l' : 'p',
-          unit: 'pt',
-          format: [viewBox[2], viewBox[3]]
-        });
-
-        for (let i = 0; i < renderedPages.length; i++) {
-          if (i > 0) pdf.addPage();
-          const imgData = await svgToDataURL(renderedPages[i]);
-          pdf.addImage(imgData, 'PNG', 0, 0, viewBox[2], viewBox[3], undefined, 'FAST');
-        }
-        
-        pdf.save('baker-notebook.pdf');
-        message.textContent = "PDF downloaded successfully.";
-      } catch (e) {
-        message.textContent = "PDF Error: " + e.message;
-      } finally {
-        downloadPdfBtn.textContent = originalText;
-        downloadPdfBtn.disabled = false;
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF();
+      for (let i = 0; i < renderedPages.length; i++) {
+        if (i > 0) pdf.addPage();
+        message.textContent = `Processing page ${i+1}...`;
+        const blob = new Blob([renderedPages[i]], {type: 'image/svg+xml'});
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        await new Promise(r => { img.onload = r; img.src = url; });
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width * 2; canvas.height = img.height * 2;
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, 210, 297);
+        URL.revokeObjectURL(url);
       }
+      pdf.save('notebook.pdf');
+      message.textContent = "PDF Downloaded.";
     });
 
-    // Start
     initPyodide();
   </script>
 </body>
