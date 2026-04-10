@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Page-Baker | Custom Notebook Architect</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    #editor:focus { outline: none; }
+    .is-dirty-dot { width: 8px; height: 8px; background: #f59e0b; border-radius: 50%; display: none; margin-left: 8px; }
+    .is-dirty .is-dirty-dot { display: inline-block; }
+    /* Hide scrollbars for a cleaner UI */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-900 h-screen overflow-hidden font-sans">
+  <div class="h-full flex flex-col">
+    <!-- Main Header -->
+    <header class="border-b bg-white px-6 py-4 shadow-sm flex flex-wrap items-center justify-between gap-4 z-10">
+      <div class="flex flex-col">
+        <h1 class="text-xl font-bold tracking-tight text-indigo-900">Page-Baker</h1>
+        <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Notebook Page Architect</p>
+      </div>
+      
+      <div class="flex items-center gap-2">
+        <button id="templateBtn" class="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-all hover:border-slate-300">
+          Load Sample
+        </button>
+        <button id="jumpBackBtn" class="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all" disabled>
+          Undo Render
+        </button>
+        <div class="h-6 w-px bg-slate-200 mx-1"></div>
+        <button id="runBtn" class="px-6 py-2 text-sm font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-md shadow-indigo-100 transition-all active:scale-95 flex items-center gap-2">
+          <span>Bake!</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="flex-1 grid grid-cols-1 lg:grid-cols-2 overflow-hidden bg-slate-100">
+      <!-- Editor Pane -->
+      <section class="flex flex-col border-r border-slate-200 bg-white">
+        <div class="flex items-center justify-between px-4 py-2 bg-slate-50 border-b border-slate-200">
+          <div class="flex items-center" id="editorHeader">
+            <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Python Editor</span>
+            <div class="is-dirty-dot" title="Unrendered changes"></div>
+          </div>
+          <div id="pyStatus" class="flex items-center gap-2 px-2 py-0.5 rounded-full bg-slate-200 text-slate-500 text-[9px] font-bold uppercase tracking-tight">
+            <div class="w-1.5 h-1.5 rounded-full bg-slate-400 animate-pulse"></div>
+            Loading Python...
+          </div>
+        </div>
+        <textarea id="editor" spellcheck="false" class="flex-1 w-full p-6 font-mono text-sm leading-relaxed resize-none bg-slate-50/30 text-slate-800 placeholder-slate-300 selection:bg-indigo-100"></textarea>
+      </section>
+
+      <!-- Preview Pane -->
+      <section class="flex flex-col min-w-0">
+        <div class="flex items-center justify-between px-4 py-2 bg-white border-b border-slate-200 shadow-sm z-10">
+          <div class="flex items-center gap-1">
+            <button id="prevPageBtn" class="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md disabled:opacity-20 transition-all">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+            </button>
+            <span id="pageIndicator" class="text-xs font-bold text-slate-500 min-w-[90px] text-center tracking-tighter">PAGE 1 OF 1</span>
+            <button id="nextPageBtn" class="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md disabled:opacity-20 transition-all">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+            </button>
+          </div>
+          
+          <div class="flex items-center gap-2">
+            <button id="downloadBtn" class="px-3 py-1.5 text-[10px] font-bold text-slate-500 border border-slate-200 rounded hover:bg-slate-50 transition-all uppercase tracking-wider">Export SVG</button>
+            <button id="downloadPdfBtn" class="px-3 py-1.5 text-[10px] font-bold text-white bg-slate-800 rounded hover:bg-slate-900 shadow-lg shadow-slate-200 transition-all uppercase tracking-wider">Download PDF</button>
+          </div>
+        </div>
+
+        <!-- Render Viewport -->
+        <div id="previewContainer" class="flex-1 overflow-auto p-12 flex items-start justify-center bg-slate-200/50 scroll-smooth no-scrollbar">
+          <div id="previewWrap" class="bg-white shadow-2xl border border-slate-300 transition-all duration-300 origin-top overflow-hidden">
+            <!-- Dynamic SVG content -->
+          </div>
+        </div>
+
+        <footer id="message" class="px-6 py-2 bg-white border-t border-slate-200 text-[11px] font-medium text-slate-500 flex items-center justify-between">
+          <span class="truncate">Initializing Python environment...</span>
+          <span class="text-slate-300 ml-4 font-mono">v1.1.0</span>
+        </footer>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    // --- Sample Code for the Editor ---
+    const sampleCode = `from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.units import inch
+from reportlab.pdfbase.pdfmetrics import stringWidth
+
+output = "notable_pages.pdf"
+page_w, page_h = letter
+
+def bake_notebook_page(c, page_number):
+    """Designs a Cornell-style note page"""
+    # Background & Borders
+    c.setStrokeColorRGB(0.85, 0.85, 0.88)
+    c.setLineWidth(0.7)
+    
+    # Margin Lines
+    left_margin = 1.5 * inch
+    header_height = page_h - 1.25 * inch
+    footer_height = 1.25 * inch
+    
+    # Vertical Cue Column Line
+    c.line(left_margin, footer_height, left_margin, header_height)
+    # Horizontal Header/Footer lines
+    c.line(0, header_height, page_w, header_height)
+    c.line(0, footer_height, page_w, footer_height)
+    
+    # Dot Grid for Main Content
+    c.setStrokeColorRGB(0.9, 0.9, 0.9)
+    spacing = 0.25 * inch
+    for x in range(int(left_margin + spacing), int(page_w), int(spacing)):
+        for y in range(int(footer_height + spacing), int(header_height), int(spacing)):
+            c.circle(x, y, 0.5, stroke=0, fill=1)
+
+    # Labels
+    c.setFont("Helvetica-Bold", 10)
+    c.setFillColorRGB(0.5, 0.5, 0.6)
+    c.drawString(0.5 * inch, page_h - 0.75 * inch, "TOPIC:")
+    c.drawString(page_w - 1.5 * inch, page_h - 0.75 * inch, "DATE:")
+    
+    c.setFont("Helvetica-Bold", 8)
+    c.drawString(0.2 * inch, footer_height + 0.2 * inch, "SUMMARY")
+    c.drawString(0.2 * inch, header_height - 0.3 * inch, "CUES / KEYWORDS")
+
+    # Page indicator at bottom
+    c.setFont("Helvetica", 9)
+    c.drawCentredString(page_w/2, 0.5 * inch, f"- {page_number} -")
+
+# Run generation
+c = canvas.Canvas(output, pagesize=letter)
+for i in range(1, 5):
+    bake_notebook_page(c, i)
+    c.showPage()
+c.save()
+print("Baked 4 Cornell-style notebook pages.")`;
+
+    const editor = document.getElementById('editor');
+    const runBtn = document.getElementById('runBtn');
+    const jumpBackBtn = document.getElementById('jumpBackBtn');
+    const templateBtn = document.getElementById('templateBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const downloadPdfBtn = document.getElementById('downloadPdfBtn');
+    const prevPageBtn = document.getElementById('prevPageBtn');
+    const nextPageBtn = document.getElementById('nextPageBtn');
+    const previewWrap = document.getElementById('previewWrap');
+    const message = document.getElementById('message').querySelector('span');
+    const pyStatus = document.getElementById('pyStatus');
+    const pageIndicator = document.getElementById('pageIndicator');
+    const editorHeader = document.getElementById('editorHeader');
+
+    let pyodide;
+    let renderedPages = [];
+    let currentPageIndex = 0;
+    let renderHistory = [];
+    let lastRenderedCode = '';
+    let isDirty = false;
+
+    // --- Lightweight ReportLab Compatibility Layer ---
+    const pythonBootstrap = `
+import sys, types
+CAPTURED_STDOUT = []
+def _capture_print(*args, **kwargs):
+    sep = kwargs.get('sep', ' ')
+    end = kwargs.get('end', '\\n')
+    CAPTURED_STDOUT.append(sep.join(str(a) for a in args) + end)
+print = _capture_print
+
+class _CompatCanvas:
+    def __init__(self, output=None, pagesize=(612.0, 792.0)):
+        self.width, self.height = pagesize
+        self._pages, self._ops = [], []
+        self._stroke_rgb = self._fill_rgb = (0, 0, 0)
+        self._line_width, self._font_name, self._font_size = 1.0, 'Helvetica', 12.0
+
+    def _y(self, y): return self.height - y
+    def setStrokeColorRGB(self, r, g, b): self._stroke_rgb = (float(r), float(g), float(b))
+    def setFillColorRGB(self, r, g, b): self._fill_rgb = (float(r), float(g), float(b))
+    def setLineWidth(self, w): self._line_width = float(w)
+    def setFont(self, n, s): self._font_name, self._font_size = str(n), float(s)
+
+    def line(self, x1, y1, x2, y2):
+        self._ops.append({'type': 'line', 'x1': float(x1), 'y1': self._y(float(y1)), 'x2': float(x2), 'y2': self._y(float(y2)), 'stroke': self._stroke_rgb, 'line_width': self._line_width})
+
+    def circle(self, x, y, r, stroke=1, fill=0):
+        self._ops.append({'type': 'circle', 'x': float(x), 'y': self._y(float(y)), 'r': float(r), 'stroke': self._stroke_rgb if stroke else None, 'fill': self._fill_rgb if fill else None, 'line_width': self._line_width})
+
+    def drawString(self, x, y, text):
+        self._ops.append({'type': 'text', 'x': float(x), 'y': self._y(float(y)), 'text': str(text), 'fill': self._fill_rgb, 'font_name': self._font_name, 'font_size': self._font_size, 'align': 'left'})
+
+    def drawCentredString(self, x, y, text):
+        self._ops.append({'type': 'text', 'x': float(x), 'y': self._y(float(y)), 'text': str(text), 'fill': self._fill_rgb, 'font_name': self._font_name, 'font_size': self._font_size, 'align': 'center'})
+
+    def showPage(self):
+        self._pages.append(self._ops)
+        self._ops = []
+
+    def save(self):
+        if self._ops: self.showPage()
+
+    def get_svg_pages(self):
+        res = []
+        for ops in self._pages:
+            s = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {self.width} {self.height}">']
+            s.append(f'<rect width="100%" height="100%" fill="white"/>')
+            for o in ops:
+                rgb_s = o.get('stroke')
+                rgb_f = o.get('fill')
+                c_s = f'rgb({round(rgb_s[0]*255)},{round(rgb_s[1]*255)},{round(rgb_s[2]*255)})' if rgb_s else 'none'
+                c_f = f'rgb({round(rgb_f[0]*255)},{round(rgb_f[1]*255)},{round(rgb_f[2]*255)})' if rgb_f else 'none'
+                
+                if o['type'] == 'line':
+                    s.append(f'<line x1="{o["x1"]}" y1="{o["y1"]}" x2="{o["x2"]}" y2="{o["y2"]}" stroke="{c_s}" stroke-width="{o["line_width"]}" />')
+                elif o['type'] == 'circle':
+                    s.append(f'<circle cx="{o["x"]}" cy="{o["y"]}" r="{o["r"]}" stroke="{c_s}" fill="{c_f}" stroke-width="{o["line_width"]}" />')
+                elif o['type'] == 'text':
+                    anchor = 'middle' if o['align'] == 'center' else 'start'
+                    s.append(f'<text x="{o["x"]}" y="{o["y"]}" fill="{c_f}" font-size="{o["font_size"]}" font-family="Helvetica, Arial, sans-serif" text-anchor="{anchor}">{o["text"]}</text>')
+            s.append('</svg>')
+            res.append("".join(s))
+        return res
+
+COMPAT_LAST_CANVAS = None
+def _CanvasFactory(output=None, pagesize=(612.0, 792.0)):
+    global COMPAT_LAST_CANVAS
+    COMPAT_LAST_CANVAS = _CompatCanvas(output, pagesize)
+    return COMPAT_LAST_CANVAS
+
+reportlab = types.ModuleType('reportlab')
+reportlab.pdfgen = types.ModuleType('reportlab.pdfgen'); reportlab.pdfgen.canvas = types.ModuleType('reportlab.pdfgen.canvas')
+reportlab.pdfgen.canvas.Canvas = _CanvasFactory
+reportlab.lib = types.ModuleType('reportlab.lib'); reportlab.lib.pagesizes = types.ModuleType('reportlab.lib.pagesizes')
+reportlab.lib.pagesizes.letter = (612.0, 792.0)
+reportlab.lib.units = types.ModuleType('reportlab.lib.units'); reportlab.lib.units.inch = 72.0
+sys.modules['reportlab'] = reportlab
+sys.modules['reportlab.pdfgen'] = reportlab.pdfgen
+sys.modules['reportlab.pdfgen.canvas'] = reportlab.pdfgen.canvas
+sys.modules['reportlab.lib'] = reportlab.lib
+sys.modules['reportlab.lib.pagesizes'] = reportlab.lib.pagesizes
+sys.modules['reportlab.lib.units'] = reportlab.lib.units
+`;
+
+    async function initPyodide() {
+      try {
+        pyodide = await loadPyodide();
+        pyStatus.innerHTML = '<div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div> Python Ready';
+        pyStatus.className = 'flex items-center gap-2 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[9px] font-bold uppercase tracking-tight';
+        editor.value = sampleCode;
+        renderCode({ pushHistory: false });
+      } catch (e) {
+        message.textContent = "Initialization failed: " + e.message;
+        pyStatus.innerHTML = '<div class="w-1.5 h-1.5 rounded-full bg-rose-500"></div> Engine Fail';
+      }
+    }
+
+    async function renderCode(opts = {}) {
+      if (!pyodide) return;
+      const code = editor.value;
+      message.textContent = "Processing layout...";
+      runBtn.disabled = true;
+      runBtn.classList.add('opacity-50');
+      
+      try {
+        // Use a cleaner execution script to reset globals every time
+        const fullScript = `
+COMPAT_LAST_CANVAS = None
+CAPTURED_STDOUT = []
+${pythonBootstrap}
+${code}
+rendered_pages = COMPAT_LAST_CANVAS.get_svg_pages() if COMPAT_LAST_CANVAS else []
+output_msg = "".join(CAPTURED_STDOUT)
+        `;
+
+        await pyodide.runPythonAsync(fullScript);
+
+        const pages = pyodide.globals.get('rendered_pages').toJs();
+        const logs = pyodide.globals.get('output_msg');
+        
+        if (!pages.length) throw new Error("No pages found. Ensure c.save() is called.");
+
+        if (opts.pushHistory !== false) renderHistory.push({ code: lastRenderedCode, pages: [...renderedPages] });
+        
+        renderedPages = pages;
+        currentPageIndex = 0;
+        lastRenderedCode = code;
+        setDirty(false);
+        showPage();
+        updateUI();
+        message.textContent = logs ? logs.trim() : `Baked ${pages.length} pages successfully.`;
+      } catch (e) {
+        message.textContent = "Error: " + e.message;
+      } finally {
+        runBtn.disabled = false;
+        runBtn.classList.remove('opacity-50');
+      }
+    }
+
+    function showPage() {
+      if (!renderedPages.length) return;
+      const svgContent = renderedPages[currentPageIndex];
+      previewWrap.innerHTML = svgContent;
+      
+      const svgEl = previewWrap.querySelector('svg');
+      const viewBox = svgEl.getAttribute('viewBox').split(' ').map(Number);
+      const w = viewBox[2], h = viewBox[3];
+      
+      // Dynamic Scaling Refinement
+      previewWrap.style.aspectRatio = `${w}/${h}`;
+      previewWrap.style.width = `min(100%, ${w}px)`;
+    }
+
+    function setDirty(val) {
+      isDirty = val;
+      editorHeader.classList.toggle('is-dirty', val);
+      runBtn.querySelector('span').textContent = val ? "Bake Changes!" : "Bake!";
+      if (val) runBtn.classList.add('animate-pulse');
+      else runBtn.classList.remove('animate-pulse');
+    }
+
+    function updateUI() {
+      pageIndicator.textContent = `PAGE ${currentPageIndex + 1} OF ${renderedPages.length}`;
+      jumpBackBtn.disabled = renderHistory.length === 0;
+      prevPageBtn.disabled = currentPageIndex === 0;
+      nextPageBtn.disabled = currentPageIndex === renderedPages.length - 1;
+    }
+
+    // --- Interactive Logic ---
+    editor.addEventListener('keydown', (e) => {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const start = editor.selectionStart;
+        const end = editor.selectionEnd;
+        editor.value = editor.value.substring(0, start) + "    " + editor.value.substring(end);
+        editor.selectionStart = editor.selectionEnd = start + 4;
+      }
+    });
+
+    editor.addEventListener('input', () => {
+      setDirty(editor.value !== lastRenderedCode);
+    });
+
+    runBtn.addEventListener('click', () => renderCode());
+    
+    prevPageBtn.addEventListener('click', () => { 
+      if(currentPageIndex > 0) { currentPageIndex--; showPage(); updateUI(); } 
+    });
+    
+    nextPageBtn.addEventListener('click', () => { 
+      if(currentPageIndex < renderedPages.length-1) { currentPageIndex++; showPage(); updateUI(); } 
+    });
+    
+    templateBtn.addEventListener('click', () => { 
+      editor.value = sampleCode; 
+      setDirty(true); 
+    });
+    
+    jumpBackBtn.addEventListener('click', () => {
+      if (!renderHistory.length) return;
+      const snapshot = renderHistory.pop();
+      editor.value = snapshot.code;
+      renderedPages = snapshot.pages;
+      lastRenderedCode = snapshot.code;
+      currentPageIndex = 0;
+      setDirty(false);
+      showPage();
+      updateUI();
+      message.textContent = "Rolled back to previous version.";
+    });
+
+    downloadBtn.addEventListener('click', () => {
+      const blob = new Blob([renderedPages[currentPageIndex]], {type: 'image/svg+xml'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `notebook-page-${currentPageIndex+1}.svg`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // Simple SVG-to-Canvas rasterizer for the PDF
+    async function svgToDataURL(svgString, scale = 4) {
+      return new Promise((resolve) => {
+        const svgBlob = new Blob([svgString], {type: 'image/svg+xml;charset=utf-8'});
+        const url = URL.createObjectURL(svgBlob);
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width * scale;
+          canvas.height = img.height * scale;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = 'white';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          const data = canvas.toDataURL('image/png');
+          URL.revokeObjectURL(url);
+          resolve(data);
+        };
+        img.src = url;
+      });
+    }
+
+    downloadPdfBtn.addEventListener('click', async () => {
+      if (!renderedPages.length) return;
+      const originalText = downloadPdfBtn.textContent;
+      downloadPdfBtn.textContent = "COMPILING...";
+      downloadPdfBtn.disabled = true;
+
+      try {
+        const { jsPDF } = window.jspdf;
+        const firstSvg = renderedPages[0];
+        const parser = new DOMParser();
+        const svgDoc = parser.parseFromString(firstSvg, "image/svg+xml");
+        const viewBox = svgDoc.documentElement.getAttribute('viewBox').split(' ').map(Number);
+        
+        const pdf = new jsPDF({
+          orientation: viewBox[2] > viewBox[3] ? 'l' : 'p',
+          unit: 'pt',
+          format: [viewBox[2], viewBox[3]]
+        });
+
+        for (let i = 0; i < renderedPages.length; i++) {
+          if (i > 0) pdf.addPage();
+          const imgData = await svgToDataURL(renderedPages[i]);
+          pdf.addImage(imgData, 'PNG', 0, 0, viewBox[2], viewBox[3], undefined, 'FAST');
+        }
+        
+        pdf.save('baker-notebook.pdf');
+        message.textContent = "PDF downloaded successfully.";
+      } catch (e) {
+        message.textContent = "PDF Error: " + e.message;
+      } finally {
+        downloadPdfBtn.textContent = originalText;
+        downloadPdfBtn.disabled = false;
+      }
+    });
+
+    // Start
+    initPyodide();
+  </script>
+</body>
+</html>
