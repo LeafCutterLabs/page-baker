@@ -8,10 +8,10 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <style>
+    * { box-sizing: border-box; }
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     #designStage { cursor: crosshair; touch-action: none; }
-    .grid-layer { pointer-events: none; transition: opacity 0.2s ease; }
     
     /* Selection & Hover Styles */
     .element-hover { cursor: pointer; transition: stroke 0.2s; stroke-linecap: round; stroke-linejoin: round; }
@@ -30,7 +30,7 @@
       overflow: visible; 
       display: flex;
       height: 100%;
-      background: rgba(165, 180, 252, 0.15); /* Persistent light purple background */
+      background: rgba(165, 180, 252, 0.15);
       border: 1px solid rgba(99, 102, 241, 0.1);
       position: relative;
       box-sizing: border-box;
@@ -48,24 +48,102 @@
       flex-direction: column;
       white-space: pre-wrap;
     }
-    .text-box-content[contenteditable="true"] {
-      background: rgba(255, 255, 255, 0.6);
-      cursor: text;
-    }
     
     /* Ruler Styles */
-    .ruler { background: #fff; color: #94a3b8; font-family: monospace; font-size: 9px; font-weight: bold; pointer-events: none; border-color: #e2e8f0; }
+    .ruler { background: #fff; color: #475569; font-family: monospace; font-size: 9px; font-weight: bold; pointer-events: none; border-color: #e2e8f0; z-index: 10; }
     .ruler-tick { stroke: #cbd5e1; stroke-width: 1; stroke-linecap: round; }
-    .ruler-label { fill: #94a3b8; }
+    .ruler-label { fill: #475569; font-size: 8px; font-weight: 800; }
     .ruler-center-marker { stroke: #6366f1; stroke-width: 1.5; }
 
-    #rulerLayout { transform-origin: top center; transition: transform 0.2s ease-out; }
+    #workspace { transform-origin: top center; transition: transform 0.2s ease-out; }
     
     input[type="range"] { accent-color: #6366f1; }
     input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
     input[type=number] { -moz-appearance: textfield; }
 
     #marqueeBox { fill: rgba(99, 102, 241, 0.1); stroke: #6366f1; stroke-width: 1; stroke-dasharray: 4; pointer-events: none; stroke-linecap: round; }
+
+    /* Selection Framing */
+    .page-assembly { 
+      position: relative;
+      padding: 32px 0 0 32px; 
+      display: inline-block;
+      background: #f1f5f9;
+      transition: all 0.2s ease;
+      border-radius: 2px;
+    }
+    .page-assembly-wrapper {
+        transition: all 0.2s ease;
+        padding: 0; 
+        display: inline-block;
+        border: 2px solid transparent;
+        margin: 20px;
+        border-radius: 4px;
+    }
+    .active-page.page-assembly-wrapper {
+      border-color: #6366f1;
+      box-shadow: 0 0 15px rgba(99, 102, 241, 0.15);
+    }
+    
+    .page-container { 
+      background: #eef2ff; /* Bleed Area Tint */
+      position: relative;
+      overflow: visible;
+      outline: 1px solid #e2e8f0;
+    }
+
+    .visible-sheet {
+        fill: white;
+        stroke: #cbd5e1;
+        stroke-width: 0.5;
+    }
+
+    .bleed-overlay {
+        fill: rgba(165, 180, 252, 0.1);
+        pointer-events: none;
+    }
+
+    /* Optimized Notebook Mode Layout - High Density */
+    .notebook-view #viewport { padding: 3rem; overflow-x: hidden; }
+    .notebook-view #workspace {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 2rem;
+        width: 100%;
+        max-width: 1600px;
+        transform: none !important;
+        align-items: start;
+    }
+    .notebook-view .ruler, .notebook-view #rulerCorner { display: none !important; }
+    .notebook-view .page-assembly-wrapper { margin: 0; padding: 0; border-radius: 4px; border: 2px solid transparent; }
+    .notebook-view .active-page.page-assembly-wrapper { border-color: #6366f1; }
+    .notebook-view .page-assembly { 
+        padding: 0; 
+        width: 100% !important; 
+        height: auto !important; 
+        cursor: pointer;
+        box-shadow: 0 4px 20px -5px rgba(0,0,0,0.1);
+        border: 1px solid #e2e8f0;
+        border-radius: 4px;
+        overflow: hidden;
+    }
+    .notebook-view .page-container { 
+        position: relative; 
+        left: 0; 
+        top: 0; 
+        width: 100% !important; 
+        height: 100% !important; 
+        border: none; 
+    }
+
+    .header-select {
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236366f1'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 0.4rem center;
+        background-size: 0.8rem;
+        padding-right: 1.5rem;
+    }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900 h-screen overflow-hidden font-sans">
@@ -73,151 +151,129 @@
     <header class="border-b bg-white px-6 py-3 shadow-sm flex items-center justify-between z-20">
       <div class="flex items-center gap-4">
         <div class="flex flex-col">
-          <h1 class="text-xl font-bold tracking-tight text-indigo-900 leading-none">Page-Baker</h1>
-          <span class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Professional Studio</span>
+          <h1 class="text-xl font-bold tracking-tight text-indigo-900 leading-none italic">PAGE-BAKER</h1>
         </div>
         
         <div class="h-8 w-px bg-slate-200 mx-2"></div>
         
-        <div class="flex items-center gap-2 bg-slate-100 p-1 rounded-lg">
-          <button onclick="setPaper('letter')" id="btn-letter" class="paper-btn px-3 py-1.5 text-xs font-bold rounded-md transition-all">Letter</button>
-          <button onclick="setPaper('legal')" id="btn-legal" class="paper-btn px-3 py-1.5 text-xs font-bold rounded-md transition-all">Legal</button>
-          <button onclick="setPaper('a4')" id="btn-a4" class="paper-btn px-3 py-1.5 text-xs font-bold rounded-md transition-all">A4</button>
-          <button onclick="setPaper('b5')" id="btn-b5" class="paper-btn px-3 py-1.5 text-xs font-bold rounded-md transition-all">Semi-B5</button>
-        </div>
+        <div class="flex items-center gap-2">
+          <select id="paperSelect" onchange="window.setPaper(this.value)" class="header-select text-xs font-black bg-slate-100 border border-slate-200 rounded-md px-3 py-2 outline-none focus:ring-2 ring-indigo-100 uppercase">
+            <option value="letter">Letter (8.5x11")</option>
+            <option value="legal">Legal (8.5x14")</option>
+            <option value="ledger">Ledger (11x17")</option>
+            <option value="a4">A4 (210x297mm)</option>
+            <option value="b5">Semi-B5 (176x250mm)</option>
+          </select>
 
-        <div class="flex items-center gap-2 ml-2">
-          <span class="text-[10px] font-bold text-slate-400 uppercase">Grid:</span>
-          <select id="gridSelect" onchange="updateGridSize(this.value)" class="text-xs font-bold bg-white border border-slate-200 rounded px-2 py-1 outline-none focus:ring-2 ring-indigo-100">
-            <optgroup label="Notebook Presets">
-              <option value="3mm">3mm (Task)</option>
-              <option value="5mm">5mm (Std)</option>
-              <option value="6mm">6mm (B-Ruled)</option>
-              <option value="12mm">12mm (Kanji)</option>
+          <select id="gridSelect" onchange="window.updateGridSize(this.value)" class="header-select text-xs font-black bg-slate-100 border border-slate-200 rounded-md px-3 py-2 outline-none focus:ring-2 ring-indigo-100 uppercase">
+            <optgroup label="Imperial">
+              <option value="0.25" selected>1/4"</option>
+              <option value="0.28125">College (9/32")</option>
+              <option value="0.34375">Wide (11/32")</option>
             </optgroup>
-            <optgroup label="Imperial Standards">
-              <option value="0.25" selected>1/4" Grid</option>
-              <option value="0.281">College</option>
-              <option value="0.344">Wide</option>
+            <optgroup label="Metric">
+              <option value="3mm">3mm</option>
+              <option value="5mm">5mm</option>
+              <option value="6mm">6mm</option>
+              <option value="8mm">8mm</option>
+              <option value="12mm">12mm</option>
             </optgroup>
           </select>
         </div>
 
-        <div class="flex items-center gap-3 border-l pl-3 border-slate-200">
-          <div class="flex flex-col items-start gap-0.5">
-            <div class="flex items-center gap-1">
-              <span class="text-[8px] font-bold text-slate-400 uppercase leading-none">Opacity %</span>
-              <input type="number" id="globalOpacityInput" min="0" max="100" value="100" onchange="updateGlobalOpacity(this.value)" class="w-7 text-[10px] font-bold text-indigo-600 bg-slate-50 rounded px-1 border-none focus:ring-1 ring-indigo-300 text-center">
-            </div>
-            <input type="range" id="globalOpacitySlider" min="0" max="100" step="1" value="100" oninput="updateGlobalOpacity(this.value)" class="w-20 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+        <div class="h-8 w-px bg-slate-200 mx-2"></div>
+
+        <!-- Inline Multi-Page Controls -->
+        <div class="flex items-center gap-1 bg-slate-50 p-1 rounded-lg border border-slate-100">
+          <button onclick="window.prevPage()" class="p-1.5 hover:bg-white rounded-md transition-all text-slate-600"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+          <div class="px-2 text-[10px] font-black text-slate-500 uppercase tracking-tighter whitespace-nowrap text-center min-w-[40px]">
+            <span id="currentPageDisplay">1</span> / <span id="totalPagesDisplay">1</span>
           </div>
-          <button onclick="toggleGrid()" id="gridToggle" class="p-2 text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors" title="Toggle Grid"><i data-lucide="grid" class="w-4 h-4"></i></button>
-          <button onclick="toggleRulers()" id="rulerToggle" class="p-2 text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors" title="Toggle Rulers"><i data-lucide="ruler" class="w-4 h-4"></i></button>
+          <button onclick="window.nextPage()" class="p-1.5 hover:bg-white rounded-md transition-all text-slate-600"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+          <div class="w-px h-4 bg-slate-200 mx-1"></div>
+          <button onclick="window.addPage()" class="p-1.5 text-indigo-600 hover:bg-white rounded-md transition-all" title="Add Page"><i data-lucide="file-plus-2" class="w-4 h-4"></i></button>
+          <button onclick="window.deletePage()" id="deletePageBtn" class="p-1.5 text-rose-600 hover:bg-white rounded-md transition-all" title="Delete Page"><i data-lucide="file-minus-2" class="w-4 h-4"></i></button>
+          <div class="w-px h-4 bg-slate-200 mx-1"></div>
+          <button onclick="window.toggleNotebookView()" id="viewToggle" class="p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white rounded-md transition-all" title="Notebook View"><i data-lucide="layout-grid" class="w-4 h-4"></i></button>
         </div>
       </div>
       
       <div class="flex items-center gap-2">
-        <button onclick="undo()" id="undoBtn" class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-30 transition-colors" disabled>
+        <div class="flex items-center gap-3 border-r pr-3 border-slate-200 mr-2">
+          <div class="flex flex-col items-start gap-0.5">
+            <div class="flex items-center gap-1">
+              <span class="text-[8px] font-bold text-slate-400 uppercase leading-none">Opacity %</span>
+              <input type="number" id="globalOpacityInput" min="0" max="100" value="100" onchange="window.updateGlobalOpacity(this.value)" class="w-7 text-[10px] font-bold text-indigo-600 bg-slate-50 rounded px-1 border-none focus:ring-1 ring-indigo-300 text-center">
+            </div>
+            <input type="range" id="globalOpacitySlider" min="0" max="100" step="1" value="100" oninput="window.updateGlobalOpacity(this.value)" class="w-20 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+          </div>
+          <button onclick="window.toggleGrid()" id="gridToggle" class="p-2 text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm" title="Toggle Grid"><i data-lucide="grid" class="w-4 h-4"></i></button>
+          <button onclick="window.toggleRulers()" id="rulerToggle" class="p-2 text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm" title="Toggle Rulers"><i data-lucide="ruler" class="w-4 h-4"></i></button>
+        </div>
+
+        <button onclick="window.undo()" id="undoBtn" class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-30 transition-colors" disabled>
           <i data-lucide="undo" class="w-4 h-4"></i>
           <span class="hidden sm:inline">Undo</span>
         </button>
-        <button onclick="clearCanvas()" class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-rose-600 bg-white border border-rose-100 rounded-lg hover:bg-rose-50 transition-colors" title="Clear All"><i data-lucide="refresh-cw" class="w-4 h-4"></i><span class="hidden sm:inline">Reset</span></button>
+        <button onclick="window.clearCanvas()" class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-rose-600 bg-white border border-rose-100 rounded-lg hover:bg-rose-50 transition-colors" title="Clear All"><i data-lucide="refresh-cw" class="w-4 h-4"></i><span class="hidden sm:inline">Reset</span></button>
         <div class="h-8 w-px bg-slate-200 mx-1"></div>
-        <button onclick="downloadSVG()" class="px-4 py-2 text-sm font-bold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-all flex items-center gap-2">
-          <i data-lucide="download" class="w-4 h-4"></i>
-          <span>Bake SVG</span>
-        </button>
-        <button onclick="downloadPDF()" class="px-5 py-2 text-sm font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-md transition-all flex items-center gap-2">
+        <button onclick="window.downloadPDF()" class="px-5 py-2 text-sm font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-md transition-all flex items-center gap-2">
           <i data-lucide="file-down" class="w-4 h-4"></i>
           <span>Bake PDF</span>
         </button>
       </div>
     </header>
 
-    <div class="bg-slate-50 border-b px-6 py-2 flex items-center justify-center gap-6 z-10">
-      <div class="flex items-center gap-2">
-        <button onclick="prevPage()" class="p-1.5 hover:bg-white rounded-lg border border-transparent hover:border-slate-200 transition-all text-slate-600"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
-        <div class="bg-white px-4 py-1 rounded-full border border-slate-200 shadow-sm">
-          <span class="text-xs font-bold text-slate-600 uppercase tracking-widest">Page <span id="currentPageDisplay">1</span> of <span id="totalPagesDisplay">1</span></span>
-        </div>
-        <button onclick="nextPage()" class="p-1.5 hover:bg-white rounded-lg border border-transparent hover:border-slate-200 transition-all text-slate-600"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
-      </div>
-      <div class="h-4 w-px bg-slate-300"></div>
-      <div class="flex items-center gap-2">
-        <button onclick="addPage()" class="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 text-xs font-bold rounded-lg border border-indigo-100 hover:bg-indigo-100 transition-all"><i data-lucide="file-plus-2" class="w-4 h-4"></i><span>Add Page</span></button>
-        <button onclick="deletePage()" id="deletePageBtn" class="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-600 text-xs font-bold rounded-lg border border-rose-100 hover:bg-rose-100 transition-all"><i data-lucide="file-minus-2" class="w-4 h-4"></i><span>Delete Page</span></button>
-      </div>
-    </div>
-
     <div class="flex-1 flex overflow-hidden">
       <!-- Toolbox Sidebar -->
       <aside class="w-16 border-r bg-white flex flex-col items-center py-6 gap-4 z-10 shadow-sm">
-        <button onclick="setTool('select')" id="tool-select" class="tool-btn p-3 rounded-xl text-slate-400 active-tool" title="Select / Move / Edit"><i data-lucide="mouse-pointer-2" class="w-6 h-6"></i></button>
+        <button onclick="window.setTool('select')" id="tool-select" class="tool-btn p-3 rounded-xl text-white bg-indigo-600 shadow-md transition-all" title="Select / Move / Edit"><i data-lucide="mouse-pointer-2" class="w-6 h-6"></i></button>
         <div class="w-8 h-px bg-slate-100 my-2"></div>
-        <button onclick="setTool('line')" id="tool-line" class="tool-btn p-3 rounded-xl text-slate-400" title="Line (Sel + H/V to Span)"><i data-lucide="minus" class="w-6 h-6"></i></button>
-        <button onclick="setTool('rect')" id="tool-rect" class="tool-btn p-3 rounded-xl text-slate-400" title="Box"><i data-lucide="square" class="w-6 h-6"></i></button>
-        <button onclick="setTool('dot')" id="tool-dot" class="tool-btn p-3 rounded-xl text-slate-400" title="Dot (Shift+Drag to Fill Area)"><i data-lucide="dot" class="w-6 h-6"></i></button>
-        <button onclick="setTool('cross')" id="tool-cross" class="tool-btn p-3 rounded-xl text-slate-400" title="Cross (Dbl Click, Shift+Drag to Fill Area)"><i data-lucide="plus" class="w-6 h-6"></i></button>
-        <button onclick="setTool('label')" id="tool-label" class="tool-btn p-3 rounded-xl text-slate-400" title="Grid Text Box (Drag 1/2 Snapped Area)"><i data-lucide="type" class="w-6 h-6"></i></button>
+        <button onclick="window.setTool('line')" id="tool-line" class="tool-btn p-3 rounded-xl text-slate-400 hover:bg-slate-50 transition-all" title="Line (Sel + H/V to Span)"><i data-lucide="minus" class="w-6 h-6"></i></button>
+        <button onclick="window.setTool('rect')" id="tool-rect" class="tool-btn p-3 rounded-xl text-slate-400 hover:bg-slate-50 transition-all" title="Box"><i data-lucide="square" class="w-6 h-6"></i></button>
+        <button onclick="window.setTool('dot')" id="tool-dot" class="tool-btn p-3 rounded-xl text-slate-400 hover:bg-slate-50 transition-all" title="Dot (Shift+Drag to Fill Area)"><i data-lucide="dot" class="w-6 h-6"></i></button>
+        <button onclick="window.setTool('cross')" id="tool-cross" class="tool-btn p-3 rounded-xl text-slate-400 hover:bg-slate-50 transition-all" title="Cross (Dbl Click, Shift+Drag to Fill Area)"><i data-lucide="plus" class="w-6 h-6"></i></button>
+        <button onclick="window.setTool('label')" id="tool-label" class="tool-btn p-3 rounded-xl text-slate-400 hover:bg-slate-50 transition-all" title="Grid Text Box"><i data-lucide="type" class="w-6 h-6"></i></button>
       </aside>
 
       <section id="viewport" class="flex-1 overflow-auto bg-slate-200/50 flex flex-col items-center p-12 no-scrollbar relative">
-        <div id="rulerLayout" class="relative flex flex-col shadow-[0_30px_60px_rgba(0,0,0,0.15)] bg-white border border-slate-200">
-          <div class="flex">
-            <div id="rulerCorner" class="w-8 h-8 bg-white border-b border-r border-slate-200 flex-shrink-0"></div>
-            <svg id="rulerTop" class="ruler h-8 border-b border-slate-200 flex-grow"></svg>
-          </div>
-          <div class="flex">
-            <svg id="rulerLeft" class="ruler w-8 border-r border-slate-200 flex-shrink-0"></svg>
-            <div id="canvasWrapper" class="bg-white relative flex-shrink-0">
-              <svg id="gridOverlay" class="absolute inset-0 grid-layer w-full h-full"></svg>
-              <svg id="designStage" class="absolute inset-0 w-full h-full">
-                <g id="elementsGroup"></g>
-                <g id="handlesGroup"></g>
-                <circle id="snapDot" r="3" fill="#6366f1" class="opacity-0 pointer-events-none" />
-                <line id="tempLine" class="hidden" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="4" stroke-linecap="round" />
-                <rect id="tempRect" class="hidden" fill="rgba(99, 102, 241, 0.1)" stroke="#6366f1" stroke-width="1" stroke-dasharray="4" stroke-linecap="round" />
-                <rect id="marqueeBox" class="hidden" />
-              </svg>
-            </div>
-          </div>
-        </div>
+        <div id="workspace" class="flex flex-col items-center gap-12 transition-all"></div>
 
         <div id="propsPanel" class="hidden fixed top-24 right-8 bg-white border border-slate-200 p-5 rounded-2xl shadow-xl w-64 z-30">
           <div class="flex items-center justify-between mb-4 border-b pb-2">
             <span id="propsTitle" class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Properties</span>
-            <button onclick="deleteSelected()" class="text-rose-500 hover:bg-rose-50 p-1.5 rounded-lg transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+            <button onclick="window.deleteSelected()" class="text-rose-500 hover:bg-rose-50 p-1.5 rounded-lg transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
           </div>
           <div class="space-y-5">
             <div>
               <label class="text-[9px] font-bold text-slate-400 uppercase block mb-2">Pattern</label>
               <div class="grid grid-cols-4 gap-1 bg-slate-100 p-1 rounded-lg">
-                <button onclick="updateSelectedStyle('dash', 'none')" id="style-none" class="style-btn px-1 py-1 text-[9px] font-bold rounded hover:bg-white transition-all">Solid</button>
-                <button onclick="updateSelectedStyle('dash', '5,5')" id="style-dashed" class="style-btn px-1 py-1 text-[9px] font-bold rounded hover:bg-white transition-all">Dash</button>
-                <button onclick="updateSelectedStyle('dash', '0,4')" id="style-dotted" class="style-btn px-1 py-1 text-[9px] font-bold rounded hover:bg-white transition-all">Dot</button>
-                <button onclick="updateSelectedStyle('dash', '8,4,0,4')" id="style-dashdot" class="style-btn px-1 py-1 text-[9px] font-bold rounded hover:bg-white transition-all">D-Dot</button>
+                <button onclick="window.updateSelectedStyle('dash', 'none')" id="style-none" class="style-btn px-1 py-1 text-[9px] font-bold rounded hover:bg-white transition-all">Solid</button>
+                <button onclick="window.updateSelectedStyle('dash', '5,5')" id="style-dashed" class="style-btn px-1 py-1 text-[9px] font-bold rounded hover:bg-white transition-all">Dash</button>
+                <button onclick="window.updateSelectedStyle('dash', '0,4')" id="style-dotted" class="style-btn px-1 py-1 text-[9px] font-bold rounded hover:bg-white transition-all">Dot</button>
+                <button onclick="window.updateSelectedStyle('dash', '8,4,0,4')" id="style-dashdot" class="style-btn px-1 py-1 text-[9px] font-bold rounded hover:bg-white transition-all">D-Dot</button>
               </div>
             </div>
             <div id="typeSpecificProps"></div>
             <div class="grid grid-cols-2 gap-4">
                <div>
                   <div class="flex items-center justify-between mb-1"><label class="text-[9px] font-bold text-slate-400 uppercase">Weight</label><span id="weightVal" class="text-[10px] font-bold text-indigo-600">1px</span></div>
-                  <input type="range" min="0.5" max="5" step="0.5" value="1" id="weightSlider" oninput="updateSelectedStyle('weight', this.value)" class="w-full h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+                  <input type="range" min="0.5" max="5" step="0.5" value="1" id="weightSlider" oninput="window.updateSelectedStyle('weight', this.value)" class="w-full h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer">
                </div>
                <div>
                   <div class="flex items-center justify-between mb-1"><label class="text-[9px] font-bold text-slate-400 uppercase">Opacity</label><span id="opacityVal" class="text-[10px] font-bold text-indigo-600">100%</span></div>
-                  <input type="range" min="10" max="100" step="10" value="100" id="opacitySlider" oninput="updateSelectedStyle('opacity', this.value)" class="w-full h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+                  <input type="range" min="10" max="100" step="10" value="100" id="opacitySlider" oninput="window.updateSelectedStyle('opacity', this.value)" class="w-full h-1 bg-slate-200 appearance-none cursor-pointer">
                </div>
             </div>
           </div>
         </div>
 
         <div class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur border border-slate-200 px-3 py-2 rounded-2xl shadow-xl flex items-center gap-2 z-30">
-           <button onclick="zoomOut()" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors"><i data-lucide="minus-circle" class="w-5 h-5"></i></button>
+           <button onclick="window.zoomOut()" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors"><i data-lucide="minus-circle" class="w-5 h-5"></i></button>
            <span id="zoomLabel" class="text-xs font-bold text-slate-500 w-12 text-center">100%</span>
-           <button onclick="zoomIn()" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors"><i data-lucide="plus-circle" class="w-5 h-5"></i></button>
+           <button onclick="window.zoomIn()" class="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors"><i data-lucide="plus-circle" class="w-4 h-4"></i></button>
            <div class="h-5 w-px bg-slate-200 mx-1"></div>
-           <button onclick="fitAuto()" class="px-2 py-1 text-[10px] font-bold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded transition-all uppercase tracking-tighter">Auto Fit</button>
+           <button onclick="window.fitAuto()" class="px-2 py-1 text-[10px] font-bold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded transition-all uppercase tracking-tighter">Auto Fit</button>
         </div>
 
         <div class="fixed bottom-6 right-6 bg-white border border-slate-200 px-4 py-2 rounded-full shadow-lg text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-6 pointer-events-none z-30">
@@ -229,462 +285,414 @@
   </div>
 
   <script>
-    const PAPER_CONFIG = {
-      letter: { width: 8.5, height: 11, unit: 'in' },
-      legal: { width: 8.5, height: 14, unit: 'in' },
-      a4: { width: 210, height: 297, unit: 'mm' },
-      b5: { width: 179, height: 252, unit: 'mm' }
-    };
+    (function() {
+      // Config
+      const PAPER_CONFIG = {
+        letter: { width: 8.5, height: 11, unit: 'in' },
+        legal: { width: 8.5, height: 14, unit: 'in' },
+        ledger: { width: 11, height: 17, unit: 'in' },
+        a4: { width: 210, height: 297, unit: 'mm' },
+        b5: { width: 176, height: 250, unit: 'mm' }
+      };
+      const PPI = 72; const PMM = 2.83465;
 
-    const PPI = 72; const PMM = 2.83465;
+      // State
+      let state = {
+        paper: 'letter', gridSize: 18, unit: 'in', tool: 'select', 
+        pages: [{ elements: [] }], currentPageIndex: 0,
+        history: [], zoom: 1.0, globalOpacity: 100,
+        isDrawing: false, isDragging: false, isModifying: false, isFilling: false, isSelecting: false,
+        activeKeys: {}, clipboard: [], editingIndex: null,
+        startPoint: null, dragElementIndex: null, selectedIndices: [], modifyHandleType: null,
+        gridVisible: true, rulerVisible: true, gridOffset: { x: 0, y: 0 },
+        viewMode: 'canvas', bleedUnits: 1.5
+      };
+      window.state = state;
 
-    let state = {
-      paper: 'letter', gridSize: 18, unit: 'in', tool: 'select', 
-      pages: [{ elements: [] }], currentPageIndex: 0,
-      history: [], zoom: 1.0, globalOpacity: 100,
-      isDrawing: false, isDragging: false, isModifying: false, isFilling: false, isSelecting: false,
-      activeKeys: {}, clipboard: [], editingIndex: null,
-      startPoint: null, dragElementIndex: null, selectedIndices: [], modifyHandleType: null,
-      gridVisible: true, rulerVisible: true, gridOffset: { x: 0, y: 0 },
-      gridType: 'standard', currentGridMode: 'in'
-    };
+      // --- Internal Helpers ---
 
-    const canvasWrapper = document.getElementById('canvasWrapper');
-    const gridOverlay = document.getElementById('gridOverlay');
-    const designStage = document.getElementById('designStage');
-    const elementsGroup = document.getElementById('elementsGroup');
-    const handlesGroup = document.getElementById('handlesGroup');
-    const tempLine = document.getElementById('tempLine');
-    const tempRect = document.getElementById('tempRect');
-    const marqueeBox = document.getElementById('marqueeBox');
-    const snapDot = document.getElementById('snapDot');
-    const coordDisplay = document.getElementById('coordDisplay');
-    const countDisplay = document.getElementById('countDisplay');
-    const undoBtn = document.getElementById('undoBtn');
-    const rulerTop = document.getElementById('rulerTop');
-    const rulerLeft = document.getElementById('rulerLeft');
-    const propsPanel = document.getElementById('propsPanel');
-    const propsTitle = document.getElementById('propsTitle');
-    const rulerLayout = document.getElementById('rulerLayout');
-    const viewport = document.getElementById('viewport');
-    const typeSpecificProps = document.getElementById('typeSpecificProps');
+      function saveHistory() { state.history.push(JSON.stringify(state.pages)); if (state.history.length > 50) state.history.shift(); }
 
-    function init() {
-      lucide.createIcons();
-      setPaper('letter');
-      setupEventListeners();
-      updateGridSize('0.25');
-      setTimeout(fitAuto, 300);
-      updatePageIndicators();
-    }
-
-    function setPaper(type) {
-      if (state.pages.some(p => p.elements.length > 0)) saveHistory();
-      state.paper = type; state.unit = PAPER_CONFIG[type].unit;
-      const config = PAPER_CONFIG[type];
-      const w = state.unit === 'in' ? config.width * PPI : config.width * PMM;
-      const h = state.unit === 'in' ? config.height * PPI : config.height * PMM;
-      canvasWrapper.style.width = `${w}px`; canvasWrapper.style.height = `${h}px`;
-      rulerTop.style.width = `${w}px`; rulerLeft.style.height = `${h}px`;
-      document.querySelectorAll('.paper-btn').forEach(b => b.classList.toggle('bg-indigo-600', b.id === `btn-${type}`));
-      document.querySelectorAll('.paper-btn').forEach(b => b.classList.toggle('text-white', b.id === `btn-${type}`));
-      renderGrid(); renderElements();
-    }
-
-    function addPage() { saveHistory(); state.pages.push({ elements: [] }); state.currentPageIndex = state.pages.length - 1; state.selectedIndices = []; renderElements(); updatePageIndicators(); }
-    function deletePage() { if (state.pages.length <= 1) return; saveHistory(); state.pages.splice(state.currentPageIndex, 1); state.currentPageIndex = Math.max(0, state.currentPageIndex - 1); state.selectedIndices = []; renderElements(); updatePageIndicators(); }
-    function prevPage() { if (state.currentPageIndex > 0) { state.currentPageIndex--; state.selectedIndices = []; renderElements(); updatePageIndicators(); } }
-    function nextPage() { if (state.currentPageIndex < state.pages.length - 1) { state.currentPageIndex++; state.selectedIndices = []; renderElements(); updatePageIndicators(); } }
-    function updatePageIndicators() { document.getElementById('currentPageDisplay').innerText = state.currentPageIndex + 1; document.getElementById('totalPagesDisplay').innerText = state.pages.length; document.getElementById('deletePageBtn').disabled = state.pages.length <= 1; }
-
-    function updateZoom(newZoom) {
-      state.zoom = Math.max(0.1, Math.min(3, newZoom));
-      rulerLayout.style.transform = `scale(${state.zoom})`;
-      document.getElementById('zoomLabel').innerText = `${Math.round(state.zoom * 100)}%`;
-    }
-
-    function zoomIn() { updateZoom(state.zoom + 0.1); }
-    function zoomOut() { updateZoom(state.zoom - 0.1); }
-    function fitAuto() {
-      const avW = viewport.clientWidth - 100, avH = viewport.clientHeight - 100;
-      const paW = parseFloat(canvasWrapper.style.width) + 32, paH = parseFloat(canvasWrapper.style.height) + 32;
-      updateZoom(Math.min(avW / paW, avH / paH));
-    }
-
-    function updateGridSize(val) {
-      state.gridType = val === '12mm' ? 'kanji' : (val === '5mm' || val === '3mm' ? 'major' : 'standard');
-      state.gridSize = val.endsWith('mm') ? parseFloat(val) * PMM : parseFloat(val) * PPI;
-      renderGrid();
-    }
-
-    function toggleGrid() { state.gridVisible = !state.gridVisible; gridOverlay.style.opacity = state.gridVisible ? "1" : "0"; }
-    function toggleRulers() { state.rulerVisible = !state.rulerVisible; document.querySelectorAll('.ruler, #rulerCorner').forEach(el => el.classList.toggle('hidden', !state.rulerVisible)); }
-
-    function updateGlobalOpacity(val) { 
-      const num = Math.max(0, Math.min(100, parseInt(val) || 0));
-      state.globalOpacity = num; 
-      document.getElementById('globalOpacitySlider').value = num;
-      document.getElementById('globalOpacityInput').value = num;
-      renderElements(); 
-    }
-
-    function renderGrid() {
-      gridOverlay.innerHTML = '';
-      const w = parseFloat(canvasWrapper.style.width), h = parseFloat(canvasWrapper.style.height), step = state.gridSize;
-      state.gridOffset = { x: (w / 2) % step, y: (h / 2) % step };
-      const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
-      for (let x = state.gridOffset.x; x <= w + 0.1; x += step) g.appendChild(createGridLine(x, 0, x, h, x, null));
-      for (let y = state.gridOffset.y; y <= h + 0.1; y += step) g.appendChild(createGridLine(0, y, w, y, null, y));
-      gridOverlay.appendChild(g);
-      renderRulers(w, h);
-    }
-
-    function createGridLine(x1, y1, x2, y2, xVal, yVal) {
-      const l = document.createElementNS("http://www.w3.org/2000/svg", "line");
-      l.setAttribute("x1", x1); l.setAttribute("y1", y1); l.setAttribute("x2", x2); l.setAttribute("y2", y2);
-      const w = parseFloat(canvasWrapper.style.width), h = parseFloat(canvasWrapper.style.height);
-      let isMajor = (xVal !== null && Math.abs(xVal - w/2) < 0.1) || (yVal !== null && Math.abs(yVal - h/2) < 0.1);
-      if (!isMajor && state.gridType === 'major') {
-          const count = xVal !== null ? Math.round((xVal - state.gridOffset.x)/state.gridSize) : Math.round((yVal - state.gridOffset.y)/state.gridSize);
-          if (count % (state.gridSize < 10 ? 5 : 2) === 0) isMajor = true;
+      function updatePageIndicators() { 
+        const cp = document.getElementById('currentPageDisplay');
+        const tp = document.getElementById('totalPagesDisplay');
+        const db = document.getElementById('deletePageBtn');
+        if(cp) cp.innerText = state.currentPageIndex + 1; 
+        if(tp) tp.innerText = state.pages.length; 
+        if(db) db.disabled = state.pages.length <= 1; 
       }
-      l.setAttribute("stroke", isMajor ? "#cbd5e1" : "#f1f5f9");
-      l.setAttribute("stroke-width", isMajor ? "1.2" : "1");
-      return l;
-    }
 
-    function renderRulers(w, h) {
-      rulerTop.innerHTML = ''; rulerLeft.innerHTML = '';
-      const unitScale = state.unit === 'in' ? PPI : PMM, cx = w/2, cy = h/2;
-      if (state.unit === 'mm') {
-        for (let x = 0; x <= w + 0.1; x += unitScale) {
-          const rel = Math.round((x - cx) / unitScale);
-          if (rel % 5 === 0) {
-            const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-            line.setAttribute("x1", x); line.setAttribute("x2", x); line.setAttribute("y1", rel % 10 === 0 ? 15 : 22); line.setAttribute("y2", 32);
-            line.setAttribute("class", Math.abs(rel) < 0.1 ? "ruler-center-marker" : "ruler-tick"); rulerTop.appendChild(line);
-            if (rel % 10 === 0) { const t = document.createElementNS("http://www.w3.org/2000/svg", "text"); t.setAttribute("x", x+2); t.setAttribute("y", 12); t.setAttribute("class", "ruler-label"); t.textContent = Math.round(rel/10); rulerTop.appendChild(t); }
-          }
-        }
-        for (let y = 0; y <= h + 0.1; y += unitScale) {
-          const rel = Math.round((y - cy) / unitScale);
-          if (rel % 5 === 0) {
-            const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-            line.setAttribute("y1", y); line.setAttribute("y2", y); line.setAttribute("x1", rel % 10 === 0 ? 15 : 22); line.setAttribute("x2", 32);
-            line.setAttribute("class", Math.abs(rel) < 0.1 ? "ruler-center-marker" : "ruler-tick"); rulerLeft.appendChild(line);
-            if (rel % 10 === 0) { const t = document.createElementNS("http://www.w3.org/2000/svg", "text"); t.setAttribute("x", 2); t.setAttribute("y", y+3); t.setAttribute("class", "ruler-label"); t.textContent = Math.round(rel/10); rulerLeft.appendChild(t); }
-          }
-        }
-      } else {
-        const step = 0.25 * unitScale;
-        for (let x = 0; x <= w + 0.1; x += step) {
-          const rel = Math.round((x - cx) / unitScale * 100) / 100;
-          const isW = Math.abs(rel % 1) < 0.01;
-          const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-          line.setAttribute("x1", x); line.setAttribute("x2", x); line.setAttribute("y1", isW ? 15 : 22); line.setAttribute("y2", 32);
-          line.setAttribute("class", Math.abs(rel) < 0.01 ? "ruler-center-marker" : "ruler-tick"); rulerTop.appendChild(line);
-          if (isW) { const t = document.createElementNS("http://www.w3.org/2000/svg", "text"); t.setAttribute("x", x+2); t.setAttribute("y", 12); t.setAttribute("class", "ruler-label"); t.textContent = Math.round(rel); rulerTop.appendChild(t); }
-        }
-        for (let y = 0; y <= h + 0.1; y += step) {
-          const rel = Math.round((y - cy) / unitScale * 100) / 100;
-          const isW = Math.abs(rel % 1) < 0.01;
-          const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-          line.setAttribute("y1", y); line.setAttribute("y2", y); line.setAttribute("x1", isW ? 15 : 22); line.setAttribute("x2", 32);
-          line.setAttribute("class", Math.abs(rel) < 0.01 ? "ruler-center-marker" : "ruler-tick"); rulerLeft.appendChild(line);
-          if (isW) { const t = document.createElementNS("http://www.w3.org/2000/svg", "text"); t.setAttribute("x", 2); t.setAttribute("y", y+3); t.setAttribute("class", "ruler-label"); t.textContent = Math.round(rel); rulerLeft.appendChild(t); }
-        }
-      }
-    }
-
-    function setTool(tool) {
-      state.tool = tool; state.selectedIndices = []; state.editingIndex = null; propsPanel.classList.add('hidden');
-      document.querySelectorAll('.tool-btn').forEach(b => b.classList.toggle('bg-indigo-50', b.id === `tool-${tool}`));
-      document.querySelectorAll('.tool-btn').forEach(b => b.classList.toggle('text-indigo-600', b.id === `tool-${tool}`));
-      renderElements();
-    }
-
-    function getSnappedCoords(e) {
-      const rect = designStage.getBoundingClientRect();
-      const rawX = (e.clientX - rect.left) / state.zoom, rawY = (e.clientY - rect.top) / state.zoom;
-      
-      // All object snapping is now 1/2 grid
-      const step = state.gridSize / 2;
-
-      const fx = Math.round((rawX - state.gridOffset.x) / step) * step + state.gridOffset.x;
-      const fy = Math.round((rawY - state.gridOffset.y) / step) * step + state.gridOffset.y;
-      const w = parseFloat(canvasWrapper.style.width), h = parseFloat(canvasWrapper.style.height), us = state.unit === 'in' ? PPI : PMM;
-      coordDisplay.innerText = `X: ${((fx - w/2) / us).toFixed(2)} Y: ${((fy - h/2) / us).toFixed(2)}`;
-      if (state.tool !== 'select') { snapDot.setAttribute('cx', fx); snapDot.setAttribute('cy', fy); snapDot.classList.remove('opacity-0'); }
-      return { x: fx, y: fy };
-    }
-
-    function setupEventListeners() {
-      window.addEventListener('keydown', e => { 
-        state.activeKeys[e.key.toLowerCase()] = true;
-        if (state.editingIndex !== null) return;
-        const pW = parseFloat(canvasWrapper.style.width), pH = parseFloat(canvasWrapper.style.height);
-        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
-            if (state.selectedIndices.length > 0) state.clipboard = state.selectedIndices.map(idx => JSON.parse(JSON.stringify(state.pages[state.currentPageIndex].elements[idx])));
-        }
-        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
-            if (state.clipboard.length > 0) {
-                e.preventDefault(); saveHistory(); const step = state.gridSize, newSel = [];
-                state.clipboard.forEach(orig => {
-                    const n = JSON.parse(JSON.stringify(orig));
-                    if (n.type === 'line') { n.x1 += step; n.y1 += step; n.x2 += step; n.y2 += step; } else { n.x += step; n.y += step; }
-                    state.pages[state.currentPageIndex].elements.push(n); newSel.push(state.pages[state.currentPageIndex].elements.length - 1);
-                });
-                state.selectedIndices = newSel; renderElements(); updatePropsPanel();
-            }
-        }
-        if (state.selectedIndices.length > 0) {
-            const el = state.pages[state.currentPageIndex].elements[state.selectedIndices[0]];
-            if (state.selectedIndices.length === 1 && el.type === 'line' && !e.ctrlKey && !e.metaKey) {
-                if (e.key.toLowerCase() === 'h') { e.preventDefault(); saveHistory(); el.x1 = 0; el.x2 = pW; el.y2 = el.y1; renderElements(); }
-                if (e.key.toLowerCase() === 'v') { e.preventDefault(); saveHistory(); el.y1 = 0; el.y2 = pH; el.x2 = el.x1; renderElements(); }
-            }
-            if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteSelected(); return; }
-            
-            // All object nudging is now 1/2 grid
-            const step = state.gridSize / 2;
-
-            let dx = 0, dy = 0;
-            if (e.key === 'ArrowUp') dy = -step; if (e.key === 'ArrowDown') dy = step;
-            if (e.key === 'ArrowLeft') dx = -step; if (e.key === 'ArrowRight') dx = step;
-            if (dx !== 0 || dy !== 0) { 
-              e.preventDefault(); saveHistory(); 
-              state.selectedIndices.forEach(idx => { const el = state.pages[state.currentPageIndex].elements[idx];
-                if (el.type === 'line') { el.x1 += dx; el.y1 += dy; el.x2 += dx; el.y2 += dy; } else { el.x += dx; el.y += dy; }
-              }); renderElements();
-            }
-        }
-      });
-      window.addEventListener('keyup', e => state.activeKeys[e.key.toLowerCase()] = false);
-
-      designStage.addEventListener('mousedown', e => {
-        const c = getSnappedCoords(e);
-        if (state.tool === 'select') {
-          if (e.target === designStage) { 
-            state.selectedIndices = []; state.isSelecting = true; state.editingIndex = null;
-            state.startPoint = { x: (e.clientX - designStage.getBoundingClientRect().left) / state.zoom, y: (e.clientY - designStage.getBoundingClientRect().top) / state.zoom };
-            marqueeBox.setAttribute('x', state.startPoint.x); marqueeBox.setAttribute('y', state.startPoint.y); marqueeBox.setAttribute('width', 0); marqueeBox.setAttribute('height', 0);
-            marqueeBox.classList.remove('hidden'); propsPanel.classList.add('hidden'); renderElements(); }
-          return;
-        };
-        if (e.shiftKey && (state.tool === 'dot' || state.tool === 'cross')) {
-            state.isFilling = true; state.startPoint = c;
-            tempRect.setAttribute('x', c.x); tempRect.setAttribute('y', c.y); tempRect.classList.remove('hidden'); return;
-        }
-        state.isDrawing = true; state.startPoint = c;
-        if (state.tool === 'line') { tempLine.setAttribute('x1', c.x); tempLine.setAttribute('y1', c.y); tempLine.classList.remove('hidden'); }
-        else { tempRect.setAttribute('x', c.x); tempRect.setAttribute('y', c.y); tempRect.classList.remove('hidden'); }
-      });
-
-      window.addEventListener('mousemove', e => {
-        const rect = designStage.getBoundingClientRect();
-        const curX = (e.clientX - rect.left) / state.zoom, curY = (e.clientY - rect.top) / state.zoom, c = getSnappedCoords(e);
-        if (state.isSelecting) {
-            const x = Math.min(curX, state.startPoint.x), y = Math.min(curY, state.startPoint.y), w = Math.abs(curX - state.startPoint.x), h = Math.abs(curY - state.startPoint.y);
-            marqueeBox.setAttribute('x', x); marqueeBox.setAttribute('y', y); marqueeBox.setAttribute('width', w); marqueeBox.setAttribute('height', h);
-            const cur = []; state.pages[state.currentPageIndex].elements.forEach((el, idx) => { if (isInside(el, x, y, w, h)) cur.push(idx); });
-            state.selectedIndices = cur; renderElements(); return;
-        }
-        if (state.isFilling) {
-            const x = Math.min(c.x, state.startPoint.x), y = Math.min(c.y, state.startPoint.y), w = Math.abs(c.x - state.startPoint.x), h = Math.abs(c.y - state.startPoint.y);
-            tempRect.setAttribute('x', x); tempRect.setAttribute('y', y); tempRect.setAttribute('width', w); tempRect.setAttribute('height', h); return;
-        }
-        if (state.isModifying && state.selectedIndices.length === 1) {
-          const el = state.pages[state.currentPageIndex].elements[state.selectedIndices[0]];
-          if (state.modifyHandleType === 'start') { el.x1 = c.x; el.y1 = c.y; } else if (state.modifyHandleType === 'end') { el.x2 = c.x; el.y2 = c.y; }
-          else if (state.modifyHandleType === 'tl') { el.x = c.x; el.y = c.y; el.w = Math.max(0, el.w + (el.x - c.x)); el.h = Math.max(0, el.h + (el.y - c.y)); }
-          else if (state.modifyHandleType === 'br') { el.w = Math.max(0, c.x - el.x); el.h = Math.max(0, c.y - el.y); }
-          else if (state.modifyHandleType === 'center') { el.x = c.x; el.y = c.y; }
-          renderElements(); return;
-        }
-        if (state.isDragging && state.selectedIndices.length > 0) {
-          const dx = c.x - state.startPoint.x, dy = c.y - state.startPoint.y; if (dx === 0 && dy === 0) return;
-          state.selectedIndices.forEach(idx => { const el = state.pages[state.currentPageIndex].elements[idx]; if (el.type === 'line') { el.x1 += dx; el.y1 += dy; el.x2 += dx; el.y2 += dy; } else { el.x += dx; el.y += dy; } });
-          state.startPoint = c; renderElements(); return;
-        }
-        if (!state.isDrawing) return;
-        if (state.tool === 'line') { tempLine.setAttribute('x2', c.x); tempLine.setAttribute('y2', c.y); }
-        else {
-          tempRect.setAttribute('x', Math.min(c.x, state.startPoint.x)); tempRect.setAttribute('y', Math.min(c.y, state.startPoint.y));
-          tempRect.setAttribute('width', Math.abs(c.x - state.startPoint.x)); tempRect.setAttribute('height', Math.abs(c.y - state.startPoint.y)); }
-      });
-
-      window.addEventListener('mouseup', (e) => {
-        if (state.isSelecting) { state.isSelecting = false; marqueeBox.classList.add('hidden'); if (state.selectedIndices.length > 0) updatePropsPanel(); return; }
-        if (state.isFilling) {
-            state.isFilling = false; tempRect.classList.add('hidden'); const c = getSnappedCoords(e), xMin = Math.min(c.x, state.startPoint.x), xMax = Math.max(c.x, state.startPoint.x), yMin = Math.min(c.y, state.startPoint.y), yMax = Math.max(c.y, state.startPoint.y), step = state.gridSize, w = parseFloat(canvasWrapper.style.width), h = parseFloat(canvasWrapper.style.height);
-            let added = false; saveHistory();
-            for (let gx = state.gridOffset.x; gx <= w + 0.1; gx += step) {
-              for (let gy = state.gridOffset.y; gy <= h + 0.1; gy += step) {
-                if (gx >= xMin - 0.1 && gx <= xMax + 0.1 && gy >= yMin - 0.1 && gy <= yMax + 0.1) {
-                  if (!(Math.abs(gx - xMin) < 0.1 || Math.abs(gx - xMax) < 0.1 || Math.abs(gy - yMin) < 0.1 || Math.abs(gy - yMax) < 0.1)) {
-                    state.pages[state.currentPageIndex].elements.push({ type: state.tool, x: gx, y: gy, style: { dash: 'none', opacity: 100, weight: 1, crossSize: 6 } }); added = true;
-                  }
-                }
-              }
-            }
-            if (added) renderElements(); else state.history.pop(); return;
-        }
-        state.isDragging = false; state.isModifying = false; if (!state.isDrawing) return; state.isDrawing = false;
-        const c = getSnappedCoords(e); let el = null; const s = { dash: 'none', opacity: 100, weight: 1, crossSize: 6, align: 'left', vAlign: 'top' };
-        if (state.tool === 'line') { tempLine.classList.add('hidden'); el = { type: 'line', x1: state.startPoint.x, y1: state.startPoint.y, x2: c.x, y2: c.y, style: s }; }
-        else {
-            tempRect.classList.add('hidden'); const x = Math.min(c.x, state.startPoint.x), y = Math.min(c.y, state.startPoint.y), w = Math.abs(c.x - state.startPoint.x), h = Math.abs(c.y - state.startPoint.y);
-            if (state.tool === 'rect') el = { type: 'rect', x, y, w, h, style: s };
-            if (state.tool === 'label') { 
-              el = { type: 'label', x, y, w, h, text: "", style: s }; 
-              saveHistory(); state.pages[state.currentPageIndex].elements.push(el);
-              state.selectedIndices = [state.pages[state.currentPageIndex].elements.length - 1];
-              state.editingIndex = state.selectedIndices[0]; renderElements(); updatePropsPanel(); return;
-            }
-        }
-        if (state.tool === 'dot') el = { type: 'dot', x: c.x, y: c.y, style: s };
-        if (el) { saveHistory(); state.pages[state.currentPageIndex].elements.push(el); renderElements(); }
-      });
-
-      designStage.addEventListener('dblclick', e => {
-        const c = getSnappedCoords(e), style = { dash: 'none', opacity: 100, weight: 1, crossSize: 6, align: 'left', vAlign: 'top' };
-        if (state.tool === 'cross') { saveHistory(); state.pages[state.currentPageIndex].elements.push({ type: 'cross', x: c.x, y: c.y, style }); renderElements(); }
-      });
-    }
-
-    function isInside(el, x, y, w, h) {
-        if (el.type === 'line') return (el.x1 >= x && el.x1 <= x+w && el.y1 >= y && el.y1 <= y+h) && (el.x2 >= x && el.x2 <= x+w && el.y2 >= y && el.y2 <= y+h);
-        if (el.type === 'rect' || el.type === 'label') return (el.x >= x && el.x+el.w <= x+w && el.y >= y && el.y+el.h <= y+h);
-        return (el.x >= x && el.x <= x+w && el.y >= y && el.y <= y+h);
-    }
-
-    function updateHAlign(idx, align) { state.pages[state.currentPageIndex].elements[idx].style.align = align; renderElements(); updatePropsPanel(); }
-    function updateVAlign(idx, vAlign) { state.pages[state.currentPageIndex].elements[idx].style.vAlign = vAlign; renderElements(); updatePropsPanel(); }
-
-    function createHandle(x, y, type) {
-      const h = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-      h.setAttribute("cx", x); h.setAttribute("cy", y); h.setAttribute("r", 4.5); h.setAttribute("class", "handle");
-      h.addEventListener('mousedown', e => { e.stopPropagation(); saveHistory(); state.isModifying = true; state.modifyHandleType = type; });
-      return h;
-    }
-
-    function renderElements() {
-      elementsGroup.innerHTML = ''; handlesGroup.innerHTML = '';
-      const mOp = state.globalOpacity / 100, elements = state.pages[state.currentPageIndex].elements;
-      elements.forEach((el, i) => {
-        const isS = state.selectedIndices.includes(i), isE = state.editingIndex === i;
-        const op = ((el.style?.opacity || 100)/100)*mOp, dash = el.style?.dash === 'none' ? '' : el.style?.dash, weight = el.style?.weight || 1;
-        const fs = Math.max(8, state.gridSize * 0.8);
-        let node;
-        if (el.type==='line') { node = document.createElementNS("http://www.w3.org/2000/svg", "line"); node.setAttribute("x1", el.x1); node.setAttribute("y1", el.y1); node.setAttribute("x2", el.x2); node.setAttribute("y2", el.y2); node.setAttribute("stroke", "#334155"); node.setAttribute("stroke-width", weight); if (dash) node.setAttribute("stroke-dasharray", dash); }
-        else if (el.type==='rect') { node = document.createElementNS("http://www.w3.org/2000/svg", "rect"); node.setAttribute("x", el.x); node.setAttribute("y", el.y); node.setAttribute("width", el.w); node.setAttribute("height", el.h); node.setAttribute("fill", "none"); node.setAttribute("stroke", "#334155"); node.setAttribute("stroke-width", weight); if (dash) node.setAttribute("stroke-dasharray", dash); }
-        else if (el.type==='dot') { node = document.createElementNS("http://www.w3.org/2000/svg", "circle"); node.setAttribute("cx", el.x); node.setAttribute("cy", el.y); node.setAttribute("r", 1.5); node.setAttribute("fill", "#334155"); }
-        else if (el.type==='cross') { const s = el.style.crossSize || 6; node = document.createElementNS("http://www.w3.org/2000/svg", "g"); node.innerHTML = `<line x1="${el.x-s/2}" x2="${el.x+s/2}" y1="${el.y}" y2="${el.y}" stroke="#334155" stroke-width="${weight}"/><line y1="${el.y-s/2}" y2="${el.y+s/2}" x1="${el.x}" x2="${el.x}" stroke="#334155" stroke-width="${weight}"/>`; }
-        else if (el.type==='label') {
-           node = document.createElementNS("http://www.w3.org/2000/svg", "foreignObject");
-           node.setAttribute("x", el.x); node.setAttribute("y", el.y); node.setAttribute("width", el.w); node.setAttribute("height", el.h);
-           const vAlignMap = {'top':'flex-start', 'middle':'center', 'bottom':'flex-end'};
-           node.innerHTML = `<div xmlns="http://www.w3.org/1999/xhtml" class="text-box-container" style="justify-content: ${vAlignMap[el.style.vAlign || 'top']};"><div id="editable-${i}" class="text-box-content" ${isE ? 'contenteditable="true"' : ''} style="text-align:${el.style.align || 'left'}; font-size: ${fs}px;">${el.text}</div></div>`;
-           if (isE) {
-              setTimeout(() => {
-                const div = document.getElementById(`editable-${i}`);
-                if (div) { div.focus(); const range = document.createRange(); range.selectNodeContents(div); const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range); 
-                    div.oninput = () => { el.text = div.innerText; const cH = div.clientHeight, sH = div.scrollHeight; if (sH > cH) { const step = state.gridSize / 2; el.h = Math.ceil(sH / step) * step; node.setAttribute("height", el.h); } }; 
-                    div.onkeydown = (ev) => { if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); div.blur(); } }; 
-                    div.onblur = () => { if (state.editingIndex === i) { state.editingIndex = null; renderElements(); } }; }
-              }, 10);
-           }
-        }
-        if (node) { node.setAttribute("opacity", op); node.classList.add('element-hover'); if (isS) node.classList.add('element-selected'); elementsGroup.appendChild(node); }
-        const hit = document.createElementNS("http://www.w3.org/2000/svg", (el.type==='line'?'line':(el.type==='rect'||el.type==='label'?'rect':'circle')));
-        hit.setAttribute("class", "hit-target"); hit.setAttribute("data-idx", i);
-        if (el.type==='line') { hit.setAttribute("x1", el.x1); hit.setAttribute("y1", el.y1); hit.setAttribute("x2", el.x2); hit.setAttribute("y2", el.y2); }
-        else if (el.type==='rect'||el.type==='label') { hit.setAttribute("x", el.x); hit.setAttribute("y", el.y); hit.setAttribute("width", el.w); hit.setAttribute("height", el.h); }
-        else { hit.setAttribute("cx", el.x); hit.setAttribute("cy", el.y); hit.setAttribute("r", 10); }
-        hit.addEventListener('mousedown', e => { if (state.tool !== 'select') return; e.stopPropagation(); if (!state.selectedIndices.includes(i)) { if (!e.shiftKey) state.selectedIndices = [i]; else state.selectedIndices.push(i); saveHistory(); } state.isDragging = true; state.dragElementIndex = i; state.startPoint = getSnappedCoords(e); updatePropsPanel(); renderElements(); });
-        hit.addEventListener('dblclick', e => { if (el.type==='label') { state.editingIndex = i; renderElements(); } });
-        elementsGroup.appendChild(hit);
-        if (isS && state.selectedIndices.length === 1 && !isE) {
-            if (el.type==='line') { handlesGroup.appendChild(createHandle(el.x1, el.y1, 'start')); handlesGroup.appendChild(createHandle(el.x2, el.y2, 'end')); }
-            else if (el.type==='rect'||el.type==='label') { handlesGroup.appendChild(createHandle(el.x, el.y, 'tl')); handlesGroup.appendChild(createHandle(el.x+el.w, el.y+el.h, 'br')); }
-            else { handlesGroup.appendChild(createHandle(el.x, el.y, 'center')); }
-        }
-      });
-      countDisplay.innerText = `${elements.length} Elements`; undoBtn.disabled = state.history.length === 0;
-    }
-
-    function updatePropsPanel() {
-      const el = state.pages[state.currentPageIndex].elements[state.selectedIndices[0]]; if (!el) return; propsPanel.classList.remove('hidden');
-      propsTitle.innerText = state.selectedIndices.length > 1 ? `Batch Props (${state.selectedIndices.length})` : "Properties";
-      document.getElementById('opacityVal').innerText = `${el.style.opacity}%`; document.getElementById('opacitySlider').value = el.style.opacity;
-      document.getElementById('weightVal').innerText = `${el.style.weight}px`; document.getElementById('weightSlider').value = el.style.weight;
-      document.querySelectorAll('.style-btn').forEach(b => b.classList.toggle('bg-white', false));
-      const dashMap = {'none':'style-none', '5,5':'style-dashed', '0,4':'style-dotted', '8,4,0,4':'style-dashdot'};
-      if (dashMap[el.style.dash]) document.getElementById(dashMap[el.style.dash]).classList.add('bg-white', 'shadow-sm', 'text-indigo-600');
-      typeSpecificProps.innerHTML = '';
-      if (state.selectedIndices.length === 1) {
-        if (el.type === 'cross') {
-          typeSpecificProps.innerHTML = `<label class="text-[9px] font-bold text-slate-400 uppercase block mb-2">Cross Size</label><div class="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-lg"><button onclick="updateSelectedStyle('crossSize', 4)" class="px-1 py-1 text-[9px] font-bold rounded ${el.style.crossSize==4?'bg-white shadow-sm':''}">S</button><button onclick="updateSelectedStyle('crossSize', 8)" class="px-1 py-1 text-[9px] font-bold rounded ${el.style.crossSize==8?'bg-white shadow-sm':''}">M</button><button onclick="updateSelectedStyle('crossSize', 14)" class="px-1 py-1 text-[9px] font-bold rounded ${el.style.crossSize==14?'bg-white shadow-sm':''}">L</button></div>`;
-        } else if (el.type === 'label') {
-          typeSpecificProps.innerHTML = `<label class="text-[9px] font-bold text-slate-400 uppercase block mb-2">Horizontal Align</label><div class="grid grid-cols-4 gap-1 bg-slate-100 p-1 rounded-lg mb-4"><button onclick="updateHAlign(${state.selectedIndices[0]}, 'left')" class="p-1.5 rounded ${el.style.align==='left'?'bg-white text-indigo-600 shadow-sm':''}"><i data-lucide="align-left" class="w-3.5 h-3.5 mx-auto"></i></button><button onclick="updateHAlign(${state.selectedIndices[0]}, 'center')" class="p-1.5 rounded ${el.style.align==='center'?'bg-white text-indigo-600 shadow-sm':''}"><i data-lucide="align-center" class="w-3.5 h-3.5 mx-auto"></i></button><button onclick="updateHAlign(${state.selectedIndices[0]}, 'right')" class="p-1.5 rounded ${el.style.align==='right'?'bg-white text-indigo-600 shadow-sm':''}"><i data-lucide="align-right" class="w-3.5 h-3.5 mx-auto"></i></button><button onclick="updateHAlign(${state.selectedIndices[0]}, 'justify')" class="p-1.5 rounded ${el.style.align==='justify'?'bg-white text-indigo-600 shadow-sm':''}"><i data-lucide="align-justify" class="w-3.5 h-3.5 mx-auto"></i></button></div><label class="text-[9px] font-bold text-slate-400 uppercase block mb-2">Vertical Align</label><div class="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-lg"><button onclick="updateVAlign(${state.selectedIndices[0]}, 'top')" class="p-1.5 rounded ${el.style.vAlign==='top'?'bg-white text-indigo-600 shadow-sm':''}"><i data-lucide="align-vertical-justify-start" class="w-3.5 h-3.5 mx-auto"></i></button><button onclick="updateVAlign(${state.selectedIndices[0]}, 'middle')" class="p-1.5 rounded ${el.style.vAlign==='middle'?'bg-white text-indigo-600 shadow-sm':''}"><i data-lucide="align-vertical-justify-center" class="w-3.5 h-3.5 mx-auto"></i></button><button onclick="updateVAlign(${state.selectedIndices[0]}, 'bottom')" class="p-1.5 rounded ${el.style.vAlign==='bottom'?'bg-white text-indigo-600 shadow-sm':''}"><i data-lucide="align-vertical-justify-end" class="w-3.5 h-3.5 mx-auto"></i></button></div>`;
-          setTimeout(() => lucide.createIcons(), 0);
-        }
-      }
-    }
-
-    function updateSelectedStyle(p, v) { if (state.selectedIndices.length === 0) return; state.selectedIndices.forEach(idx => state.pages[state.currentPageIndex].elements[idx].style[p] = v); if (p==='opacity') document.getElementById('opacityVal').innerText = `${v}%`; if (p==='weight') document.getElementById('weightVal').innerText = `${v}px`; renderElements(); updatePropsPanel(); }
-    function deleteSelected() { if (state.selectedIndices.length === 0) return; saveHistory(); state.pages[state.currentPageIndex].elements = state.pages[state.currentPageIndex].elements.filter((_, i) => !state.selectedIndices.includes(i)); state.selectedIndices = []; propsPanel.classList.add('hidden'); renderElements(); }
-    function clearCanvas() { if (confirm('Reset page?')) { saveHistory(); state.pages[state.currentPageIndex].elements = []; state.selectedIndices = []; propsPanel.classList.add('hidden'); renderElements(); } }
-    function saveHistory() { state.history.push(JSON.stringify(state.pages)); if (state.history.length > 50) state.history.shift(); }
-    function undo() { if (state.history.length) { state.pages = JSON.parse(state.history.pop()); state.selectedIndices = []; propsPanel.classList.add('hidden'); renderElements(); updatePageIndicators(); } }
-
-    function downloadSVG() {
-      const conf = PAPER_CONFIG[state.paper], w = parseFloat(canvasWrapper.style.width), h = parseFloat(canvasWrapper.style.height), mOp = state.globalOpacity / 100;
-      let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${conf.width}${conf.unit}" height="${conf.height}${conf.unit}" viewBox="0 0 ${w} ${h}">`;
-      svg += `<rect width="100%" height="100%" fill="white"/>`;
-      state.pages[state.currentPageIndex].elements.forEach(el => {
-        const op = ((el.style?.opacity || 100) / 100) * mOp, dash = el.style?.dash === 'none' ? '' : el.style?.dash, wt = el.style?.weight || 1, col = "#334155";
-        if (el.type==='line') svg += `<line x1="${el.x1}" y1="${el.y1}" x2="${el.x2}" y2="${el.y2}" stroke="${col}" stroke-width="${wt}" stroke-dasharray="${dash}" opacity="${op}" stroke-linecap="round"/>`;
-        else if (el.type==='rect') svg += `<rect x="${el.x}" y="${el.y}" width="${el.w}" height="${el.h}" stroke="${col}" stroke-width="${wt}" stroke-dasharray="${dash}" fill="none" opacity="${op}" stroke-linecap="round"/>`;
-        else if (el.type==='dot') svg += `<circle cx="${el.x}" cy="${el.y}" r="1.5" fill="${col}" opacity="${op}"/>`;
-        else if (el.type==='cross') { const s = el.style.crossSize || 6; svg += `<g stroke="${col}" stroke-width="${wt}" opacity="${op}" stroke-linecap="round"><line x1="${el.x-s/2}" y1="${el.y}" x2="${el.x+s/2}" y2="${el.y}"/><line x1="${el.x}" y1="${el.y-s/2}" x2="${el.x}" y2="${el.y+s/2}"/></g>`; }
-        else if (el.type==='label') {
-           const lines = el.text.split('\n'), fs = Math.max(8, state.gridSize * 0.8), align = el.style.align === 'center' ? 'middle' : (el.style.align === 'right' ? 'end' : 'start');
-           const xP = el.x + (el.style.align === 'center' ? el.w/2 : (el.style.align === 'right' ? el.w : 0));
-           const sY = el.y + (el.style.vAlign === 'middle' ? (el.h - (lines.length * fs)) / 2 : (el.style.vAlign === 'bottom' ? el.h - (lines.length * fs) : 0));
-           lines.forEach((l, li) => { svg += `<text x="${xP}" y="${sY + (li * fs) + fs}" fill="${col}" font-size="${fs}" font-family="Helvetica" font-weight="bold" text-anchor="${align}" opacity="${op}">${l}</text>`; });
-        }
-      });
-      svg += `</svg>`;
-      const b = new Blob([svg], {type: 'image/svg+xml'}), u = URL.createObjectURL(b), a = document.createElement('a'); a.href = u; a.download = `baked-page-${state.currentPageIndex+1}.svg`; a.click(); URL.revokeObjectURL(u);
-    }
-
-    async function downloadPDF() {
-      const { jsPDF } = window.jspdf; const conf = PAPER_CONFIG[state.paper], pdf = new jsPDF({ orientation: conf.width > conf.height ? 'l' : 'p', unit: state.unit, format: state.paper });
-      const scale = state.unit === 'in' ? PPI : PMM, gOp = state.globalOpacity / 100;
-      state.pages.forEach((page, pI) => {
-        if (pI > 0) pdf.addPage(state.paper, conf.width > conf.height ? 'l' : 'p');
-        pdf.setLineCap('round');
-        page.elements.forEach(el => {
-            const finalOp = ((el.style?.opacity || 100) / 100) * gOp;
-            const gState = new pdf.GState({ opacity: finalOp, "stroke-opacity": finalOp });
-            pdf.setGState(gState);
-            pdf.setDrawColor(51, 65, 85); pdf.setLineWidth((el.style?.weight || 1) / scale);
-            if (el.style?.dash !== 'none') { const d = {'5,5':[5,5], '0,4':[0,4], '8,4,0,4':[8,4,0,4]}[el.style.dash]; pdf.setLineDashPattern(d.map(v => v/scale), 0); } else pdf.setLineDashPattern([], 0);
-            if (el.type === 'line') pdf.line(el.x1/scale, el.y1/scale, el.x2/scale, el.y2/scale);
-            if (el.type === 'rect') pdf.rect(el.x/scale, el.y/scale, el.w/scale, el.h/scale);
-            if (el.type === 'dot') { pdf.setFillColor(51, 65, 85); pdf.circle(el.x/scale, el.y/scale, 1.5/scale, 'F'); }
-            if (el.type === 'cross') { const s = el.style.crossSize || 6; pdf.line((el.x-s/2)/scale, el.y/scale, (el.x+s/2)/scale, el.y/scale); pdf.line(el.x/scale, (el.y-s/2)/scale, el.x/scale, (el.y+s/2)/scale); }
-            if (el.type === 'label') { 
-              const fs = Math.max(7, state.gridSize * 0.8); pdf.setFont("helvetica", "bold"); pdf.setFontSize(fs * (72/96));
-              const xO = el.style.align==='center'?el.w/2:(el.style.align==='right'?el.w:0), yO = el.style.vAlign==='middle'?el.h/2:(el.style.vAlign==='bottom'?el.h:10);
-              pdf.text(el.text, (el.x + xO)/scale, (el.y + yO)/scale, { align: el.style.align==='justify'?'left':el.style.align, baseline: el.style.vAlign==='top'?'top':(el.style.vAlign==='bottom'?'bottom':'middle'), maxWidth: el.w/scale }); 
-            }
+      function updatePropsPanel() {
+        const panel = document.getElementById('propsPanel');
+        if (!panel) return;
+        const selectedElements = state.pages[state.currentPageIndex].elements.filter((_, i) => state.selectedIndices.includes(i));
+        if (selectedElements.length === 0) { panel.classList.add('hidden'); return; }
+        panel.classList.remove('hidden');
+        const el = selectedElements[0];
+        document.getElementById('propsTitle').innerText = state.selectedIndices.length > 1 ? `Batch (${state.selectedIndices.length})` : "Properties";
+        document.getElementById('weightVal').innerText = `${el.style.weight || 1}px`;
+        document.getElementById('weightSlider').value = el.style.weight || 1;
+        document.getElementById('opacityVal').innerText = `${el.style.opacity || 100}%`;
+        document.getElementById('opacitySlider').value = el.style.opacity || 100;
+        document.querySelectorAll('.style-btn').forEach(btn => {
+          const dash = el.style.dash || 'none';
+          const btnType = btn.id.replace('style-', '');
+          const activeType = dash === 'none' ? 'none' : (dash === '5,5' ? 'dashed' : (dash === '0,4' ? 'dotted' : 'dashdot'));
+          btn.classList.toggle('bg-white', btnType === activeType);
         });
-      });
-      pdf.save(`baked-notebook.pdf`);
-    }
-    init();
+      }
+
+      function renderRulerContent(svg, size, orientation) {
+        svg.innerHTML = '';
+        const unitScale = state.unit === 'in' ? PPI : PMM;
+        const bleedPx = state.bleedUnits * state.gridSize;
+        const step = state.unit === 'in' ? 0.125 * unitScale : 1 * unitScale; 
+
+        for (let i = 0; i <= size + 0.5; i += step) {
+          const rel = (i - bleedPx) / unitScale;
+          const isInch = state.unit === 'in';
+          const isMajor = isInch ? (Math.abs(rel % 1) < 0.01) : (Math.abs(rel % 10) < 0.01);
+          const isHalf = isInch ? (Math.abs(rel % 0.5) < 0.01) : (Math.abs(rel % 5) < 0.01);
+          const isQuarter = isInch ? (Math.abs(rel % 0.25) < 0.01) : false;
+
+          const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          let tickSize = isMajor ? 20 : (isHalf ? 12 : (isQuarter ? 8 : 5));
+          
+          if (orientation === 'horizontal') {
+            line.setAttribute("x1", i); line.setAttribute("x2", i);
+            line.setAttribute("y1", 32 - tickSize); line.setAttribute("y2", 32);
+          } else {
+            line.setAttribute("y1", i); line.setAttribute("y2", i);
+            line.setAttribute("x1", 32 - tickSize); line.setAttribute("x2", 32);
+          }
+          
+          line.setAttribute("class", Math.abs(rel) < 0.001 ? "ruler-center-marker" : "ruler-tick");
+          svg.appendChild(line);
+
+          if (isMajor) {
+            const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            text.setAttribute("class", "ruler-label");
+            text.textContent = Math.round(rel);
+            if (orientation === 'horizontal') {
+              text.setAttribute("x", i + 2); text.setAttribute("y", 10);
+            } else {
+              text.setAttribute("x", 2); text.setAttribute("y", i + 8);
+            }
+            svg.appendChild(text);
+          }
+        }
+      }
+
+      function renderGridLines(elG, w, h) {
+        const step = state.gridSize;
+        const bleedPx = state.bleedUnits * state.gridSize;
+        const sheetW = w - 2 * bleedPx;
+        const sheetH = h - 2 * bleedPx;
+        state.gridOffset = { x: (sheetW / 2 + bleedPx) % step, y: (sheetH / 2 + bleedPx) % step };
+        for (let x = state.gridOffset.x; x <= w + 0.1; x += step) {
+          const l = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          l.setAttribute("x1", x); l.setAttribute("y1", 0); l.setAttribute("x2", x); l.setAttribute("y2", h);
+          l.setAttribute("stroke", Math.abs(x - (sheetW / 2 + bleedPx)) < 0.1 ? "#cbd5e1" : "#f1f5f9");
+          elG.appendChild(l);
+        }
+        for (let y = state.gridOffset.y; y <= h + 0.1; y += step) {
+          const l = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          l.setAttribute("x1", 0); l.setAttribute("y1", y); l.setAttribute("x2", w); l.setAttribute("y2", y);
+          l.setAttribute("stroke", Math.abs(y - (sheetH / 2 + bleedPx)) < 0.1 ? "#cbd5e1" : "#f1f5f9");
+          elG.appendChild(l);
+        }
+      }
+
+      // --- Exposed Global Actions ---
+
+      window.init = function() {
+        try { lucide.createIcons(); } catch(e) {}
+        window.setPaper('letter');
+        window.setupEventListeners();
+        window.updateGridSize('0.25');
+        setTimeout(window.fitAuto, 300);
+      };
+
+      window.setPaper = function(type) {
+        saveHistory(); state.paper = type; state.unit = PAPER_CONFIG[type].unit;
+        window.renderWorkspace();
+      };
+
+      window.updateGridSize = function(val) {
+        state.gridSize = val.endsWith('mm') ? parseFloat(val) * PMM : parseFloat(val) * PPI;
+        window.renderWorkspace();
+      };
+
+      window.toggleGrid = function() {
+        state.gridVisible = !state.gridVisible;
+        const btn = document.getElementById('gridToggle');
+        if(btn) { btn.classList.toggle('bg-indigo-600', state.gridVisible); btn.classList.toggle('text-white', state.gridVisible); }
+        window.renderWorkspace();
+      };
+
+      window.toggleRulers = function() {
+        state.rulerVisible = !state.rulerVisible;
+        const btn = document.getElementById('rulerToggle');
+        if(btn) { btn.classList.toggle('bg-indigo-600', state.rulerVisible); btn.classList.toggle('text-white', state.rulerVisible); }
+        window.renderWorkspace();
+      };
+
+      window.toggleNotebookView = function() {
+        state.viewMode = state.viewMode === 'canvas' ? 'notebook' : 'canvas';
+        document.body.classList.toggle('notebook-view', state.viewMode === 'notebook');
+        const btn = document.getElementById('viewToggle');
+        if(btn) { btn.classList.toggle('bg-slate-800', state.viewMode === 'notebook'); btn.classList.toggle('text-white', state.viewMode === 'notebook'); }
+        window.renderWorkspace();
+      };
+
+      window.updateGlobalOpacity = (v) => { state.globalOpacity = parseInt(v); window.renderWorkspace(); };
+      window.undo = () => { if (state.history.length) { state.pages = JSON.parse(state.history.pop()); window.renderWorkspace(); } };
+      window.prevPage = () => { if (state.currentPageIndex > 0) { state.currentPageIndex--; window.renderWorkspace(); } };
+      window.nextPage = () => { if (state.currentPageIndex < state.pages.length - 1) { state.currentPageIndex++; window.renderWorkspace(); } };
+      window.addPage = () => { saveHistory(); state.pages.push({ elements: [] }); state.currentPageIndex = state.pages.length - 1; window.renderWorkspace(); };
+      window.deletePage = () => { if (state.pages.length > 1) { saveHistory(); state.pages.splice(state.currentPageIndex, 1); state.currentPageIndex = Math.max(0, state.currentPageIndex - 1); window.renderWorkspace(); } };
+      
+      window.setTool = (t) => {
+        state.tool = t;
+        document.querySelectorAll('.tool-btn').forEach(b => {
+          const isActive = b.id === `tool-${t}`;
+          b.classList.toggle('bg-indigo-600', isActive); b.classList.toggle('text-white', isActive);
+          b.classList.toggle('text-slate-400', !isActive); b.classList.toggle('shadow-md', isActive);
+        });
+        state.selectedIndices = []; state.editingIndex = null;
+        if(document.getElementById('propsPanel')) document.getElementById('propsPanel').classList.add('hidden');
+        window.renderWorkspace();
+      };
+
+      window.updateSelectedStyle = (p, v) => { state.selectedIndices.forEach(idx => state.pages[state.currentPageIndex].elements[idx].style[p] = v); updatePropsPanel(); window.renderWorkspace(); };
+      window.deleteSelected = () => { state.pages[state.currentPageIndex].elements = state.pages[state.currentPageIndex].elements.filter((_, i) => !state.selectedIndices.includes(i)); state.selectedIndices = []; updatePropsPanel(); window.renderWorkspace(); };
+      window.clearCanvas = () => { if(confirm("Reset entire page?")) { saveHistory(); state.pages[state.currentPageIndex].elements = []; state.selectedIndices = []; updatePropsPanel(); window.renderWorkspace(); } };
+      window.zoomIn = () => window.updateZoom(state.zoom + 0.1);
+      window.zoomOut = () => window.updateZoom(state.zoom - 0.1);
+      
+      window.updateZoom = function(newZoom) {
+        state.zoom = Math.max(0.1, Math.min(3, newZoom));
+        const ws = document.getElementById('workspace');
+        if (ws) ws.style.transform = `scale(${state.zoom})`;
+        const zl = document.getElementById('zoomLabel');
+        if(zl) zl.innerText = `${Math.round(state.zoom * 100)}%`;
+      };
+
+      window.fitAuto = function() {
+        const viewport = document.getElementById('viewport');
+        if (!viewport) return;
+        const config = PAPER_CONFIG[state.paper];
+        const bleedPx = state.bleedUnits * state.gridSize;
+        const w = state.unit === 'in' ? config.width * PPI : config.width * PMM;
+        window.updateZoom(Math.min((viewport.clientWidth - 100) / (w + 2 * bleedPx + 64), 1.0));
+      };
+
+      window.getSnappedCoords = function(e) {
+        const stage = document.getElementById(`stage-${state.currentPageIndex}`);
+        if (!stage) return {x:0, y:0};
+        const rect = stage.getBoundingClientRect();
+        const rawX = (e.clientX - rect.left) / state.zoom;
+        const rawY = (e.clientY - rect.top) / state.zoom;
+        const bleedPx = state.bleedUnits * state.gridSize;
+        const step = state.gridSize / 2;
+        const config = PAPER_CONFIG[state.paper];
+        const sheetW = state.unit === 'in' ? config.width * PPI : config.width * PMM;
+        const sheetH = state.unit === 'in' ? config.height * PPI : config.height * PMM;
+        const ox = (sheetW / 2 + bleedPx) % state.gridSize;
+        const oy = (sheetH / 2 + bleedPx) % state.gridSize;
+        const fx = Math.round((rawX - ox) / step) * step + ox;
+        const fy = Math.round((rawY - oy) / step) * step + oy;
+
+        const dot = document.getElementById(`snapDot-${state.currentPageIndex}`);
+        if (dot) {
+          dot.setAttribute('cx', fx); dot.setAttribute('cy', fy);
+          if (state.tool !== 'select' || state.isDrawing || state.isDragging) dot.classList.remove('opacity-0');
+          else dot.classList.add('opacity-0');
+        }
+        const cd = document.getElementById('coordDisplay');
+        if(cd) cd.innerText = `X: ${((fx - bleedPx - sheetW/2) / (state.unit === 'in' ? PPI : PMM)).toFixed(2)} Y: ${((fy - bleedPx - sheetH/2) / (state.unit === 'in' ? PPI : PMM)).toFixed(2)}`;
+        return { x: fx - bleedPx, y: fy - bleedPx };
+      };
+
+      window.renderWorkspace = function() {
+        const workspace = document.getElementById('workspace');
+        if (!workspace) return;
+        workspace.innerHTML = '';
+        const config = PAPER_CONFIG[state.paper];
+        const w = state.unit === 'in' ? config.width * PPI : config.width * PMM;
+        const h = state.unit === 'in' ? config.height * PPI : config.height * PMM;
+        const bleedPx = state.bleedUnits * state.gridSize;
+        const totalW = w + 2 * bleedPx;
+        const totalH = h + 2 * bleedPx;
+
+        state.pages.forEach((page, idx) => {
+          const wrapper = document.createElement('div');
+          wrapper.className = `page-assembly-wrapper ${idx === state.currentPageIndex ? 'active-page' : ''}`;
+          const assembly = document.createElement('div');
+          assembly.className = 'page-assembly';
+          
+          if (state.viewMode === 'canvas') {
+              assembly.style.width = `${totalW + 32}px`; assembly.style.height = `${totalH + 32}px`;
+              if (state.rulerVisible) {
+                const rt = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+                rt.setAttribute("class", "ruler absolute top-0 border-b");
+                rt.style.left = "32px"; rt.style.width = `${totalW}px`; rt.style.height = "32px";
+                renderRulerContent(rt, totalW, 'horizontal');
+                const rl = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+                rl.setAttribute("class", "ruler absolute left-0 border-r");
+                rl.style.top = "32px"; rl.style.width = "32px"; rl.style.height = `${totalH}px`;
+                renderRulerContent(rl, totalH, 'vertical');
+                const cr = document.createElement('div'); cr.id = "rulerCorner"; cr.className = "w-8 h-8 bg-white border-b border-r border-slate-200 absolute left-0 top-0";
+                assembly.appendChild(cr); assembly.appendChild(rt); assembly.appendChild(rl);
+              }
+          } else {
+              assembly.style.width = '100%'; assembly.style.height = 'auto'; assembly.style.aspectRatio = `${totalW} / ${totalH}`;
+          }
+
+          const container = document.createElement('div');
+          container.className = "page-container";
+          if (state.viewMode === 'canvas') { container.classList.add('absolute'); container.style.left = '32px'; container.style.top = '32px'; }
+          container.style.width = `${totalW}px`; container.style.height = `${totalH}px`;
+          container.onclick = () => { state.currentPageIndex = idx; window.renderWorkspace(); updatePageIndicators(); };
+
+          const stage = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+          stage.setAttribute("class", "absolute inset-0 w-full h-full");
+          stage.id = `stage-${idx}`;
+          stage.setAttribute("viewBox", `0 0 ${totalW} ${totalH}`);
+          
+          // Layer 0: Physical Sheet
+          const sheet = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+          sheet.setAttribute("x", bleedPx); sheet.setAttribute("y", bleedPx);
+          sheet.setAttribute("width", w); sheet.setAttribute("height", h);
+          sheet.setAttribute("class", "visible-sheet");
+          
+          // Layer 1: Grid
+          const gridLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+          if (state.gridVisible) renderGridLines(gridLayer, totalW, totalH);
+
+          // Layer 2: Design Elements
+          const gElements = document.createElementNS("http://www.w3.org/2000/svg", "g");
+          
+          // Layer 3: Helpers
+          const marquee = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+          marquee.id = `marquee-${idx}`; marquee.setAttribute("class", "hidden");
+          marquee.setAttribute("fill", "rgba(99, 102, 241, 0.1)"); marquee.setAttribute("stroke", "#6366f1");
+          marquee.setAttribute("stroke-width", "1"); marquee.setAttribute("stroke-dasharray", "4");
+
+          const snapDot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+          snapDot.id = `snapDot-${idx}`; snapDot.setAttribute("r", "3.5"); snapDot.setAttribute("fill", "#6366f1");
+          snapDot.setAttribute("class", "opacity-0 pointer-events-none transition-opacity duration-75");
+
+          const tLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          tLine.id = `tempLine-${idx}`; tLine.setAttribute("class", "hidden");
+          tLine.setAttribute("stroke", "#6366f1"); tLine.setAttribute("stroke-width", "1.5"); tLine.setAttribute("stroke-dasharray", "4");
+
+          const tRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+          tRect.id = `tempRect-${idx}`; tRect.setAttribute("class", "hidden");
+          tRect.setAttribute("fill", "rgba(99, 102, 241, 0.1)"); tRect.setAttribute("stroke", "#6366f1");
+          tRect.setAttribute("stroke-width", "1"); tRect.setAttribute("stroke-dasharray", "4");
+
+          // Layer 4: Bleed Frame (Top)
+          const bleed = document.createElementNS("http://www.w3.org/2000/svg", "path");
+          bleed.setAttribute("d", `M 0 0 H ${totalW} V ${totalH} H 0 Z M ${bleedPx} ${bleedPx} V ${bleedPx+h} H ${bleedPx+w} V ${bleedPx} Z`);
+          bleed.setAttribute("class", "bleed-overlay");
+
+          stage.appendChild(sheet); stage.appendChild(gridLayer); stage.appendChild(gElements);
+          stage.appendChild(marquee); stage.appendChild(tLine); stage.appendChild(tRect); stage.appendChild(snapDot); stage.appendChild(bleed);
+          container.appendChild(stage); assembly.appendChild(container); wrapper.appendChild(assembly); workspace.appendChild(wrapper);
+
+          // Element Rendering
+          const mOp = state.globalOpacity / 100;
+          page.elements.forEach((el, i) => {
+            const isS = (idx === state.currentPageIndex && state.selectedIndices.includes(i));
+            const op = ((el.style?.opacity || 100)/100)*mOp, wt = el.style?.weight || 1;
+            let node;
+            if (el.type==='line') { node = document.createElementNS("http://www.w3.org/2000/svg", "line"); node.setAttribute("x1", el.x1+bleedPx); node.setAttribute("y1", el.y1+bleedPx); node.setAttribute("x2", el.x2+bleedPx); node.setAttribute("y2", el.y2+bleedPx); node.setAttribute("stroke", "#334155"); node.setAttribute("stroke-width", wt); if(el.style?.dash !== 'none') node.setAttribute("stroke-dasharray", el.style.dash); }
+            else if (el.type==='rect') { node = document.createElementNS("http://www.w3.org/2000/svg", "rect"); node.setAttribute("x", el.x+bleedPx); node.setAttribute("y", el.y+bleedPx); node.setAttribute("width", el.w); node.setAttribute("height", el.h); node.setAttribute("fill", "none"); node.setAttribute("stroke", "#334155"); node.setAttribute("stroke-width", wt); if(el.style?.dash !== 'none') node.setAttribute("stroke-dasharray", el.style.dash); }
+            else if (el.type==='dot') { node = document.createElementNS("http://www.w3.org/2000/svg", "circle"); node.setAttribute("cx", el.x+bleedPx); node.setAttribute("cy", el.y+bleedPx); node.setAttribute("r", 1.5); node.setAttribute("fill", "#334155"); }
+            if (node) { node.setAttribute("opacity", op); node.classList.add('element-hover'); if (isS) node.classList.add('element-selected'); gElements.appendChild(node); }
+            const hit = document.createElementNS("http://www.w3.org/2000/svg", (el.type==='line'?'line':(el.type==='rect'?'rect':'circle')));
+            hit.setAttribute("class", "hit-target");
+            if (el.type==='line') { hit.setAttribute("x1", el.x1+bleedPx); hit.setAttribute("y1", el.y1+bleedPx); hit.setAttribute("x2", el.x2+bleedPx); hit.setAttribute("y2", el.y2+bleedPx); }
+            else if (el.type==='rect') { hit.setAttribute("x", el.x+bleedPx); hit.setAttribute("y", el.y+bleedPx); hit.setAttribute("width", el.w); hit.setAttribute("height", el.h); }
+            else { hit.setAttribute("cx", el.x+bleedPx); hit.setAttribute("cy", el.y+bleedPx); hit.setAttribute("r", 10); }
+            hit.onmousedown = (e) => { e.stopPropagation(); if (!state.selectedIndices.includes(i)) { if (!e.shiftKey) state.selectedIndices = [i]; else state.selectedIndices.push(i); } state.isDragging = true; state.dragElementIndex = i; state.startPoint = window.getSnappedCoords(e); updatePropsPanel(); window.renderWorkspace(); };
+            gElements.appendChild(hit);
+          });
+
+          if (idx === state.currentPageIndex) {
+              stage.onmousedown = (e) => {
+                const c = window.getSnappedCoords(e);
+                if (state.tool === 'select') { if (e.target === stage || e.target.classList.contains('visible-sheet')) { state.selectedIndices = []; window.renderWorkspace(); updatePropsPanel(); } return; }
+                state.isDrawing = true; state.startPoint = c;
+              };
+          }
+        });
+        updatePageIndicators();
+      };
+
+      // --- Setup Handlers ---
+
+      window.setupEventListeners = function() {
+        window.onmousemove = (e) => {
+          const c = window.getSnappedCoords(e);
+          const bleedPx = state.bleedUnits * state.gridSize;
+          if (state.isDrawing) {
+            const tl = document.getElementById(`tempLine-${state.currentPageIndex}`);
+            const tr = document.getElementById(`tempRect-${state.currentPageIndex}`);
+            if (state.tool === 'line' && tl) { tl.classList.remove('hidden'); tl.setAttribute('x1', state.startPoint.x + bleedPx); tl.setAttribute('y1', state.startPoint.y + bleedPx); tl.setAttribute('x2', c.x + bleedPx); tl.setAttribute('y2', c.y + bleedPx); } 
+            else if (state.tool === 'rect' && tr) { tr.classList.remove('hidden'); tr.setAttribute('x', Math.min(state.startPoint.x, c.x) + bleedPx); tr.setAttribute('y', Math.min(state.startPoint.y, c.y) + bleedPx); tr.setAttribute('width', Math.abs(c.x - state.startPoint.x)); tr.setAttribute('height', Math.abs(c.y - state.startPoint.y)); }
+          }
+          if (state.isDragging && state.selectedIndices.length > 0) {
+            const dx = c.x - state.startPoint.x, dy = c.y - state.startPoint.y;
+            if (dx === 0 && dy === 0) return;
+            state.selectedIndices.forEach(idx => { const el = state.pages[state.currentPageIndex].elements[idx]; if (el.type === 'line') { el.x1 += dx; el.y1 += dy; el.x2 += dx; el.y2 += dy; } else { el.x += dx; el.y += dy; } });
+            state.startPoint = c; window.renderWorkspace();
+          }
+        };
+        window.onmouseup = (e) => {
+          if (state.isDrawing) {
+              state.isDrawing = false;
+              const c = window.getSnappedCoords(e), s = { opacity: 100, weight: 1, dash: 'none' };
+              let el = state.tool === 'line' ? { type:'line', x1: state.startPoint.x, y1: state.startPoint.y, x2: c.x, y2: c.y, style:s } : { type:'rect', x: Math.min(state.startPoint.x, c.x), y: Math.min(state.startPoint.y, c.y), w: Math.abs(c.x-state.startPoint.x), h: Math.abs(c.y-state.startPoint.y), style:s };
+              if (state.tool === 'dot') el = { type:'dot', x:c.x, y:c.y, style:s };
+              state.pages[state.currentPageIndex].elements.push(el);
+              window.renderWorkspace();
+          }
+          state.isDragging = false;
+        };
+        window.onkeydown = (e) => {
+          const cmdCtrl = (navigator.platform.toUpperCase().indexOf('MAC') >= 0) ? e.metaKey : e.ctrlKey;
+          if (e.key === 'z' && cmdCtrl) { e.preventDefault(); window.undo(); return; }
+          if (e.key.toLowerCase() === 'c' && cmdCtrl && state.selectedIndices.length > 0) { e.preventDefault(); state.clipboard = state.selectedIndices.map(idx => JSON.parse(JSON.stringify(state.pages[state.currentPageIndex].elements[idx]))); return; }
+          if (e.key.toLowerCase() === 'v' && cmdCtrl && state.clipboard.length > 0) {
+              e.preventDefault(); saveHistory();
+              const step = state.gridSize; const newIdx = [];
+              state.clipboard.forEach(el => {
+                  const pastedEl = JSON.parse(JSON.stringify(el));
+                  if (pastedEl.type === 'line') { pastedEl.x1 += step; pastedEl.y1 += step; pastedEl.x2 += step; pastedEl.y2 += step; } 
+                  else { pastedEl.x += step; pastedEl.y += step; }
+                  state.pages[state.currentPageIndex].elements.push(pastedEl);
+                  newIdx.push(state.pages[state.currentPageIndex].elements.length - 1);
+              });
+              state.selectedIndices = newIdx; window.renderWorkspace(); return;
+          }
+          if ((e.key === 'Delete' || e.key === 'Backspace') && state.selectedIndices.length > 0) { e.preventDefault(); window.deleteSelected(); return; }
+          if (state.selectedIndices.length > 0 && e.key.startsWith('Arrow')) {
+              e.preventDefault(); saveHistory();
+              const step = state.gridSize / 2; let dx = 0, dy = 0;
+              if (e.key === 'ArrowUp') dy = -step; if (e.key === 'ArrowDown') dy = step; if (e.key === 'ArrowLeft') dx = -step; if (e.key === 'ArrowRight') dx = step;
+              state.selectedIndices.forEach(idx => {
+                  const el = state.pages[state.currentPageIndex].elements[idx];
+                  if (el.type === 'line') { el.x1 += dx; el.y1 += dy; el.x2 += dx; el.y2 += dy; } else { el.x += dx; el.y += dy; }
+              });
+              window.renderWorkspace();
+          }
+        };
+      };
+
+      window.onload = window.init;
+    })();
   </script>
 </body>
 </html>
