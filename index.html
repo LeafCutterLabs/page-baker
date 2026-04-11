@@ -449,11 +449,7 @@
     function setupEventListeners() {
       window.addEventListener('keydown', e => { 
         state.activeKeys[e.key.toLowerCase()] = true;
-        if (state.editingIndex !== null) {
-            // Standard editable div behavior: Shift+Enter is a newline.
-            // We want plain Enter to finish editing.
-            return;
-        }
+        if (state.editingIndex !== null) return;
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
             if (state.selectedIndices.length > 0) state.clipboard = state.selectedIndices.map(idx => JSON.parse(JSON.stringify(state.pages[state.currentPageIndex].elements[idx])));
         }
@@ -570,7 +566,7 @@
       designStage.addEventListener('dblclick', e => {
         const c = getSnappedCoords(e), w = parseFloat(canvasWrapper.style.width), h = parseFloat(canvasWrapper.style.height);
         const s = { dash: 'none', opacity: 100, weight: 1, crossSize: 6, align: 'left', vAlign: 'top' };
-        if (state.tool === 'cross') { saveHistory(); state.pages[state.currentPageIndex].elements.push({ type: 'cross', x: c.x, y: c.y, style: s }); renderElements(); return; }
+        if (state.tool === 'cross') { saveHistory(); state.elements.push({ type: 'cross', x: c.x, y: c.y, style: s }); renderElements(); return; }
         if (state.activeKeys['h']) { saveHistory(); state.pages[state.currentPageIndex].elements.push({ type: 'line', x1: 0, y1: c.y, x2: w, y2: c.y, style: s }); renderElements(); }
         else if (state.activeKeys['v']) { saveHistory(); state.pages[state.currentPageIndex].elements.push({ type: 'line', x1: c.x, y1: 0, x2: c.x, y2: h, style: s }); renderElements(); }
       });
@@ -617,12 +613,26 @@
                 const div = document.getElementById(`editable-${i}`);
                 if (div) { 
                     div.focus(); const range = document.createRange(); range.selectNodeContents(div); const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range); 
-                    div.oninput = () => { el.text = div.innerText; };
+                    div.oninput = () => { 
+                      el.text = div.innerText;
+                      // Handle Auto-expansion
+                      const containerHeight = div.clientHeight;
+                      const contentHeight = div.scrollHeight;
+                      if (contentHeight > containerHeight) {
+                        const step = state.gridSize / 2;
+                        const neededHeight = Math.ceil(contentHeight / step) * step;
+                        el.h = neededHeight;
+                        node.setAttribute("height", el.h);
+                        // Also update the hit-target height if found
+                        const hit = Array.from(elementsGroup.children).find(c => c.getAttribute('data-idx') == i && c.classList.contains('hit-target'));
+                        if (hit) hit.setAttribute("height", el.h);
+                      }
+                    };
                     div.onkeydown = (ev) => {
                       if (ev.key === 'Enter' && ev.shiftKey) {
-                        // Allow default Shift+Enter behavior for newline
+                        // Expansion will be handled by oninput
                       } else if (ev.key === 'Enter' && !ev.shiftKey) {
-                        ev.preventDefault(); div.blur(); // Enter finishes editing
+                        ev.preventDefault(); div.blur();
                       }
                     };
                     div.onblur = () => { if (state.editingIndex === i) { state.editingIndex = null; renderElements(); } }; 
@@ -631,14 +641,17 @@
            }
         }
         if (node) { node.setAttribute("opacity", op); node.classList.add('element-hover'); if (isS) node.classList.add('element-selected'); elementsGroup.appendChild(node); }
+        
         const hit = document.createElementNS("http://www.w3.org/2000/svg", (el.type==='line'?'line':(el.type==='rect'||el.type==='label'?'rect':'circle')));
         hit.setAttribute("class", "hit-target");
+        hit.setAttribute("data-idx", i);
         if (el.type==='line') { hit.setAttribute("x1", el.x1); hit.setAttribute("y1", el.y1); hit.setAttribute("x2", el.x2); hit.setAttribute("y2", el.y2); }
         else if (el.type==='rect'||el.type==='label') { hit.setAttribute("x", el.x); hit.setAttribute("y", el.y); hit.setAttribute("width", el.w); hit.setAttribute("height", el.h); }
         else { hit.setAttribute("cx", el.x); hit.setAttribute("cy", el.y); hit.setAttribute("r", 10); }
         hit.addEventListener('mousedown', e => { if (state.tool !== 'select') return; e.stopPropagation(); if (!state.selectedIndices.includes(i)) { if (!e.shiftKey) state.selectedIndices = [i]; else state.selectedIndices.push(i); saveHistory(); } state.isDragging = true; state.dragElementIndex = i; state.startPoint = getSnappedCoords(e); updatePropsPanel(); renderElements(); });
         hit.addEventListener('dblclick', e => { if (el.type==='label') { state.editingIndex = i; renderElements(); } });
         elementsGroup.appendChild(hit);
+
         if (isS && state.selectedIndices.length === 1 && !isE) {
             if (el.type==='line') { handlesGroup.appendChild(createHandle(el.x1, el.y1, 'start')); handlesGroup.appendChild(createHandle(el.x2, el.y2, 'end')); }
             else if (el.type==='rect'||el.type==='label') { handlesGroup.appendChild(createHandle(el.x, el.y, 'tl')); handlesGroup.appendChild(createHandle(el.x+el.w, el.y+el.h, 'br')); }
