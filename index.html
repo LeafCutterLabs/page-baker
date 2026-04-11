@@ -23,6 +23,8 @@
     
     .handle { cursor: move; fill: #6366f1; stroke: white; stroke-width: 1.5; transition: r 0.2s; pointer-events: all; }
     .handle:hover { r: 6; }
+    .handle-edge { fill: white; stroke: #6366f1; stroke-width: 2; cursor: pointer; }
+    .handle-center { cursor: move; fill: #6366f1; stroke: white; stroke-width: 2; }
     
     /* Text Box Styling */
     .text-box-container { 
@@ -50,7 +52,7 @@
     }
     
     /* Ruler Styles */
-    .ruler { background: #fff; color: #475569; font-family: monospace; font-size: 9px; font-weight: bold; pointer-events: none; border-color: #e2e8f0; z-index: 10; }
+    .ruler { background: #fff; color: #475569; font-family: monospace; font-size: 9px; font-weight: bold; pointer-events: none; border-color: #e2e8f0; z-index: 10; user-select: none; -webkit-user-select: none; }
     .ruler-tick { stroke: #cbd5e1; stroke-width: 1; stroke-linecap: round; }
     .ruler-label { fill: #475569; font-size: 8px; font-weight: 800; }
     .ruler-center-marker { stroke: #6366f1; stroke-width: 1.5; }
@@ -78,13 +80,27 @@
         padding: 2px;
         display: inline-block;
         border: 2px solid transparent;
-        margin: 18px;
+        margin: 6px 18px;
         border-radius: 4px;
         box-sizing: border-box;
     }
     .active-page.page-assembly-wrapper {
       border-color: #6366f1;
       box-shadow: 0 0 15px rgba(99, 102, 241, 0.15);
+    }
+    .canvas-page-enter-next {
+      animation: canvasPageEnterNext 180ms ease-out;
+    }
+    .canvas-page-enter-prev {
+      animation: canvasPageEnterPrev 180ms ease-out;
+    }
+    @keyframes canvasPageEnterNext {
+      from { opacity: 0.7; transform: translateX(18px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes canvasPageEnterPrev {
+      from { opacity: 0.7; transform: translateX(-18px); }
+      to { opacity: 1; transform: translateX(0); }
     }
     
     .page-container { 
@@ -146,6 +162,16 @@
         background-size: 0.8rem;
         padding-right: 1.5rem;
     }
+    .selection-toolbar {
+        visibility: visible;
+        opacity: 1;
+        transition: opacity 0.15s ease;
+    }
+    .selection-toolbar.hidden {
+        visibility: hidden;
+        opacity: 0;
+        pointer-events: none;
+    }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900 h-screen overflow-hidden font-sans">
@@ -201,6 +227,26 @@
       </div>
       
       <div class="flex items-center gap-2">
+        <div id="selectionToolbar" class="selection-toolbar hidden flex items-center gap-3 mr-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl min-h-[52px]">
+          <span id="selectionToolbarTitle" class="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Properties</span>
+          <div class="grid grid-cols-4 gap-1 bg-white p-1 rounded-lg border border-slate-200">
+            <button onclick="window.updateSelectedStyle('dash', 'none')" id="style-none" class="style-btn px-2 py-1 text-[9px] font-bold rounded hover:bg-slate-50 transition-all">Solid</button>
+            <button onclick="window.updateSelectedStyle('dash', '5,5')" id="style-dashed" class="style-btn px-2 py-1 text-[9px] font-bold rounded hover:bg-slate-50 transition-all">Dash</button>
+            <button onclick="window.updateSelectedStyle('dash', '0,4')" id="style-dotted" class="style-btn px-2 py-1 text-[9px] font-bold rounded hover:bg-slate-50 transition-all">Dot</button>
+            <button onclick="window.updateSelectedStyle('dash', '8,4,0,4')" id="style-dashdot" class="style-btn px-2 py-1 text-[9px] font-bold rounded hover:bg-slate-50 transition-all">D-Dot</button>
+          </div>
+          <div class="flex items-center gap-2">
+            <label class="text-[9px] font-bold text-slate-400 uppercase whitespace-nowrap">Weight</label>
+            <span id="weightVal" class="text-[10px] font-bold text-indigo-600 w-8 text-center">1px</span>
+            <input type="range" min="0.5" max="5" step="0.5" value="1" id="weightSlider" oninput="window.updateSelectedStyle('weight', this.value)" class="w-20 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+          </div>
+          <div class="flex items-center gap-2">
+            <label class="text-[9px] font-bold text-slate-400 uppercase whitespace-nowrap">Opacity</label>
+            <span id="opacityVal" class="text-[10px] font-bold text-indigo-600 w-10 text-center">100%</span>
+            <input type="range" min="10" max="100" step="10" value="100" id="opacitySlider" oninput="window.updateSelectedStyle('opacity', this.value)" class="w-20 h-1 bg-slate-200 appearance-none cursor-pointer">
+          </div>
+          <button onclick="window.deleteSelected()" class="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors" title="Delete Selected"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+        </div>
         <div class="flex items-center gap-3 border-r pr-3 border-slate-200 mr-2">
           <div class="flex flex-col items-start gap-0.5">
             <div class="flex items-center gap-1">
@@ -218,13 +264,6 @@
           <i data-lucide="undo" class="w-4 h-4"></i>
           <span class="hidden sm:inline">Undo</span>
         </button>
-        <div class="flex items-center gap-1 px-2 py-1 bg-slate-50 border border-slate-200 rounded-xl">
-          <button onclick="window.zoomOut()" class="p-1.5 hover:bg-white rounded-lg text-slate-600 transition-colors" title="Zoom Out"><i data-lucide="minus-circle" class="w-4 h-4"></i></button>
-          <span id="zoomLabel" class="text-xs font-bold text-slate-500 w-12 text-center">100%</span>
-          <button onclick="window.zoomIn()" class="p-1.5 hover:bg-white rounded-lg text-slate-600 transition-colors" title="Zoom In"><i data-lucide="plus-circle" class="w-4 h-4"></i></button>
-          <div class="h-5 w-px bg-slate-200 mx-1"></div>
-          <button onclick="window.fitAuto()" class="px-2 py-1 text-[10px] font-bold bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded transition-all uppercase tracking-tighter">Auto Fit</button>
-        </div>
         <button onclick="window.clearCanvas()" class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-rose-600 bg-white border border-rose-100 rounded-lg hover:bg-rose-50 transition-colors" title="Clear All"><i data-lucide="refresh-cw" class="w-4 h-4"></i><span class="hidden sm:inline">Reset</span></button>
         <div class="h-8 w-px bg-slate-200 mx-1"></div>
         <button onclick="window.downloadPDF()" class="px-5 py-2 text-sm font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-md transition-all flex items-center gap-2">
@@ -246,42 +285,8 @@
         <button onclick="window.setTool('label')" id="tool-label" class="tool-btn p-3 rounded-xl text-slate-400 hover:bg-slate-50 transition-all" title="Grid Text Box"><i data-lucide="type" class="w-6 h-6"></i></button>
       </aside>
 
-      <section id="viewport" class="flex-1 overflow-auto bg-slate-200/50 flex flex-col items-center px-12 pt-[5px] pb-12 no-scrollbar relative">
+      <section id="viewport" class="flex-1 overflow-auto bg-slate-200/50 flex flex-col items-center px-12 pt-[5px] pb-1 no-scrollbar relative">
         <div id="workspace" class="flex flex-row items-start gap-12 transition-all"></div>
-
-        <div id="propsPanel" class="hidden fixed top-24 right-8 bg-white border border-slate-200 p-5 rounded-2xl shadow-xl w-64 z-30">
-          <div class="flex items-center justify-between mb-4 border-b pb-2">
-            <span id="propsTitle" class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Properties</span>
-            <button onclick="window.deleteSelected()" class="text-rose-500 hover:bg-rose-50 p-1.5 rounded-lg transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-          </div>
-          <div class="space-y-5">
-            <div>
-              <label class="text-[9px] font-bold text-slate-400 uppercase block mb-2">Pattern</label>
-              <div class="grid grid-cols-4 gap-1 bg-slate-100 p-1 rounded-lg">
-                <button onclick="window.updateSelectedStyle('dash', 'none')" id="style-none" class="style-btn px-1 py-1 text-[9px] font-bold rounded hover:bg-white transition-all">Solid</button>
-                <button onclick="window.updateSelectedStyle('dash', '5,5')" id="style-dashed" class="style-btn px-1 py-1 text-[9px] font-bold rounded hover:bg-white transition-all">Dash</button>
-                <button onclick="window.updateSelectedStyle('dash', '0,4')" id="style-dotted" class="style-btn px-1 py-1 text-[9px] font-bold rounded hover:bg-white transition-all">Dot</button>
-                <button onclick="window.updateSelectedStyle('dash', '8,4,0,4')" id="style-dashdot" class="style-btn px-1 py-1 text-[9px] font-bold rounded hover:bg-white transition-all">D-Dot</button>
-              </div>
-            </div>
-            <div id="typeSpecificProps"></div>
-            <div class="grid grid-cols-2 gap-4">
-               <div>
-                  <div class="flex items-center justify-between mb-1"><label class="text-[9px] font-bold text-slate-400 uppercase">Weight</label><span id="weightVal" class="text-[10px] font-bold text-indigo-600">1px</span></div>
-                  <input type="range" min="0.5" max="5" step="0.5" value="1" id="weightSlider" oninput="window.updateSelectedStyle('weight', this.value)" class="w-full h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer">
-               </div>
-               <div>
-                  <div class="flex items-center justify-between mb-1"><label class="text-[9px] font-bold text-slate-400 uppercase">Opacity</label><span id="opacityVal" class="text-[10px] font-bold text-indigo-600">100%</span></div>
-                  <input type="range" min="10" max="100" step="10" value="100" id="opacitySlider" oninput="window.updateSelectedStyle('opacity', this.value)" class="w-full h-1 bg-slate-200 appearance-none cursor-pointer">
-               </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="fixed bottom-6 right-6 bg-white border border-slate-200 px-4 py-2 rounded-full shadow-lg text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-6 pointer-events-none z-30">
-          <span id="coordDisplay">X: 0.00 Y: 0.00</span>
-          <span id="countDisplay">0 Elements</span>
-        </div>
       </section>
     </div>
   </div>
@@ -309,7 +314,9 @@
         gridVisible: true, rulerVisible: true, gridOffset: { x: 0, y: 0 },
         viewMode: 'canvas', bleedUnits: 1,
         bleedVisible: true,
-        notebookLayout: { cols: 1, pageWidth: 280 }
+        notebookLayout: { cols: 1, pageWidth: 280 },
+        lastCanvasPageIndex: null,
+        notebookClickTimer: null
       };
       window.state = state;
 
@@ -327,13 +334,14 @@
       }
 
       function updatePropsPanel() {
-        const panel = document.getElementById('propsPanel');
+        const panel = document.getElementById('selectionToolbar');
         if (!panel) return;
         const selectedElements = state.pages[state.currentPageIndex].elements.filter((_, i) => state.selectedIndices.includes(i));
         if (selectedElements.length === 0) { panel.classList.add('hidden'); return; }
         panel.classList.remove('hidden');
+        panel.classList.add('flex');
         const el = selectedElements[0];
-        document.getElementById('propsTitle').innerText = state.selectedIndices.length > 1 ? `Batch (${state.selectedIndices.length})` : "Properties";
+        document.getElementById('selectionToolbarTitle').innerText = state.selectedIndices.length > 1 ? `Batch (${state.selectedIndices.length})` : `${el.type} Selected`;
         document.getElementById('weightVal').innerText = `${el.style.weight || 1}px`;
         document.getElementById('weightSlider').value = el.style.weight || 1;
         document.getElementById('opacityVal').innerText = `${el.style.opacity || 100}%`;
@@ -408,6 +416,76 @@
         }
       }
 
+      function getElementHandles(el, bleedPx) {
+        if (el.type === 'line') {
+          const x1 = el.x1 + bleedPx, y1 = el.y1 + bleedPx, x2 = el.x2 + bleedPx, y2 = el.y2 + bleedPx;
+          return {
+            center: { x: (x1 + x2) / 2, y: (y1 + y2) / 2 },
+            edges: [{ x: x1, y: y1 }, { x: x2, y: y2 }]
+          };
+        }
+        if (el.type === 'rect') {
+          const x = el.x + bleedPx, y = el.y + bleedPx, w = el.w, h = el.h;
+          return {
+            center: { x: x + w / 2, y: y + h / 2 },
+            edges: [
+              { x: x + w / 2, y },
+              { x: x + w, y: y + h / 2 },
+              { x: x + w / 2, y: y + h },
+              { x, y: y + h / 2 }
+            ]
+          };
+        }
+        const x = el.x + bleedPx, y = el.y + bleedPx;
+        return {
+          center: { x, y },
+          edges: [
+            { x, y: y - 12 },
+            { x: x + 12, y },
+            { x, y: y + 12 },
+            { x: x - 12, y }
+          ]
+        };
+      }
+
+      function applyHandleModification(el, handle, point) {
+        if (!el || !handle) return;
+
+        if (el.type === 'line') {
+          if (handle.kind === 'edge' && handle.index === 0) {
+            el.x1 = point.x;
+            el.y1 = point.y;
+          } else if (handle.kind === 'edge' && handle.index === 1) {
+            el.x2 = point.x;
+            el.y2 = point.y;
+          }
+          return;
+        }
+
+        if (el.type === 'rect' && handle.kind === 'edge') {
+          const left = el.x;
+          const right = el.x + el.w;
+          const top = el.y;
+          const bottom = el.y + el.h;
+
+          if (handle.index === 0) {
+            const nextTop = Math.min(point.y, bottom - state.gridSize / 2);
+            el.y = nextTop;
+            el.h = bottom - nextTop;
+          } else if (handle.index === 1) {
+            const nextRight = Math.max(point.x, left + state.gridSize / 2);
+            el.w = nextRight - left;
+          } else if (handle.index === 2) {
+            const nextBottom = Math.max(point.y, top + state.gridSize / 2);
+            el.h = nextBottom - top;
+          } else if (handle.index === 3) {
+            const nextLeft = Math.min(point.x, right - state.gridSize / 2);
+            el.x = nextLeft;
+            el.w = right - nextLeft;
+          }
+        }
+      }
+
       function updateNotebookLayout(totalW, totalH) {
         if (state.viewMode !== 'notebook') return;
         const viewport = document.getElementById('viewport');
@@ -420,22 +498,17 @@
         const paddingY = 64;
         const availableWidth = Math.max(viewport.clientWidth - paddingX, 240);
         const availableHeight = Math.max(viewport.clientHeight - paddingY, 240);
-        const aspect = totalW / totalH;
+        const pageAspect = totalW / totalH;
+        const viewportAspect = availableWidth / availableHeight;
+        const estimatedCols = Math.sqrt(pageCount * (viewportAspect / pageAspect));
+        const cols = Math.max(1, Math.min(pageCount, Math.ceil(estimatedCols)));
+        const rows = Math.ceil(pageCount / cols);
+        const widthFromSpace = (availableWidth - gap * (cols - 1)) / cols;
+        const heightFromSpace = (availableHeight - gap * (rows - 1)) / rows;
+        const safeWidth = Math.max(120, Math.floor(Math.min(widthFromSpace, heightFromSpace * pageAspect)));
 
-        let best = { cols: 1, pageWidth: Math.min(availableWidth, availableHeight * aspect) };
-
-        for (let cols = 1; cols <= pageCount; cols++) {
-          const rows = Math.ceil(pageCount / cols);
-          const widthFromSpace = (availableWidth - gap * (cols - 1)) / cols;
-          const heightFromSpace = (availableHeight - gap * (rows - 1)) / rows;
-          const pageWidth = Math.min(widthFromSpace, heightFromSpace * aspect);
-
-          if (pageWidth > best.pageWidth) best = { cols, pageWidth };
-        }
-
-        const safeWidth = Math.max(120, Math.floor(best.pageWidth));
-        state.notebookLayout = { cols: best.cols, pageWidth: safeWidth };
-        workspace.style.gridTemplateColumns = `repeat(${best.cols}, ${safeWidth}px)`;
+        state.notebookLayout = { cols, pageWidth: safeWidth };
+        workspace.style.gridTemplateColumns = `repeat(${cols}, ${safeWidth}px)`;
       }
 
       function getVisibleBleedPx() {
@@ -443,7 +516,11 @@
       }
 
       function getCanvasRulerOffset() {
-        return state.viewMode === 'canvas' && state.rulerVisible ? 32 : 0;
+        return state.viewMode === 'canvas' && state.rulerVisible ? 24 : 0;
+      }
+
+      function getCanvasFrameExtra() {
+        return 20;
       }
 
       function centerActivePage() {
@@ -528,22 +605,18 @@
           b.classList.toggle('text-slate-400', !isActive); b.classList.toggle('shadow-md', isActive);
         });
         state.selectedIndices = []; state.editingIndex = null;
-        if(document.getElementById('propsPanel')) document.getElementById('propsPanel').classList.add('hidden');
+        updatePropsPanel();
         window.renderWorkspace();
       };
 
       window.updateSelectedStyle = (p, v) => { state.selectedIndices.forEach(idx => state.pages[state.currentPageIndex].elements[idx].style[p] = v); updatePropsPanel(); window.renderWorkspace(); };
       window.deleteSelected = () => { state.pages[state.currentPageIndex].elements = state.pages[state.currentPageIndex].elements.filter((_, i) => !state.selectedIndices.includes(i)); state.selectedIndices = []; updatePropsPanel(); window.renderWorkspace(); };
       window.clearCanvas = () => { if(confirm("Reset entire page?")) { saveHistory(); state.pages[state.currentPageIndex].elements = []; state.selectedIndices = []; updatePropsPanel(); window.renderWorkspace(); } };
-      window.zoomIn = () => window.updateZoom(state.zoom + 0.1);
-      window.zoomOut = () => window.updateZoom(state.zoom - 0.1);
       
       window.updateZoom = function(newZoom) {
         state.zoom = Math.max(0.1, Math.min(3, newZoom));
         const ws = document.getElementById('workspace');
         if (ws) ws.style.transform = `scale(${state.zoom})`;
-        const zl = document.getElementById('zoomLabel');
-        if(zl) zl.innerText = `${Math.round(state.zoom * 100)}%`;
       };
 
       window.fitAuto = function() {
@@ -557,9 +630,11 @@
         const bleedPx = getVisibleBleedPx();
         const w = state.unit === 'in' ? config.width * PPI : config.width * PMM;
         const h = state.unit === 'in' ? config.height * PPI : config.height * PMM;
-        const totalH = h + 2 * bleedPx + getCanvasRulerOffset() + 4;
-        const fitHeight = (viewport.clientHeight - 12) / totalH;
-        window.updateZoom(Math.min(fitHeight, 1.0));
+        const totalW = w + 2 * bleedPx + getCanvasRulerOffset() + getCanvasFrameExtra();
+        const totalH = h + 2 * bleedPx + getCanvasRulerOffset() + getCanvasFrameExtra();
+        const fitHeight = (viewport.clientHeight - 8) / totalH;
+        const fitWidth = (viewport.clientWidth - 24) / totalW;
+        window.updateZoom(Math.min(fitHeight, fitWidth));
       };
 
       window.getSnappedCoords = function(e) {
@@ -594,6 +669,10 @@
         if (!workspace) return;
         workspace.innerHTML = '';
         workspace.style.gridTemplateColumns = '';
+        workspace.style.alignSelf = state.viewMode === 'canvas' && state.pages.length === 1 ? 'center' : (state.viewMode === 'canvas' ? 'flex-start' : 'center');
+        const pageChangeDirection = state.viewMode === 'canvas' && state.lastCanvasPageIndex !== null
+          ? (state.currentPageIndex > state.lastCanvasPageIndex ? 'next' : (state.currentPageIndex < state.lastCanvasPageIndex ? 'prev' : null))
+          : null;
         const config = PAPER_CONFIG[state.paper];
         const w = state.unit === 'in' ? config.width * PPI : config.width * PMM;
         const h = state.unit === 'in' ? config.height * PPI : config.height * PMM;
@@ -607,6 +686,35 @@
         state.pages.forEach((page, idx) => {
           const wrapper = document.createElement('div');
           wrapper.className = `page-assembly-wrapper ${idx === state.currentPageIndex ? 'active-page' : ''}`;
+          if (state.viewMode === 'canvas' && idx === state.currentPageIndex && pageChangeDirection) {
+            wrapper.classList.add(pageChangeDirection === 'next' ? 'canvas-page-enter-next' : 'canvas-page-enter-prev');
+          }
+          if (state.viewMode === 'notebook') wrapper.style.width = `${state.notebookLayout.pageWidth}px`;
+          if (state.viewMode === 'notebook') {
+            wrapper.onclick = () => {
+              clearTimeout(state.notebookClickTimer);
+              state.notebookClickTimer = setTimeout(() => {
+                state.currentPageIndex = idx;
+                window.renderWorkspace();
+                updatePageIndicators();
+                state.notebookClickTimer = null;
+              }, 180);
+            };
+            wrapper.ondblclick = () => {
+              clearTimeout(state.notebookClickTimer);
+              state.notebookClickTimer = null;
+              state.currentPageIndex = idx;
+              state.viewMode = 'canvas';
+              document.body.classList.remove('notebook-view');
+              const btn = document.getElementById('viewToggle');
+              if (btn) {
+                btn.classList.remove('bg-slate-800');
+                btn.classList.remove('text-white');
+              }
+              window.renderWorkspace();
+              updatePageIndicators();
+            };
+          }
           const assembly = document.createElement('div');
           assembly.className = 'page-assembly';
           
@@ -634,7 +742,11 @@
           container.className = "page-container";
           if (state.viewMode === 'canvas') { container.classList.add('absolute'); container.style.left = `${rulerOffset}px`; container.style.top = `${rulerOffset}px`; }
           container.style.width = `${totalW}px`; container.style.height = `${totalH}px`;
-          container.onclick = () => { state.currentPageIndex = idx; window.renderWorkspace(); updatePageIndicators(); };
+          container.onclick = () => {
+            state.currentPageIndex = idx;
+            window.renderWorkspace();
+            updatePageIndicators();
+          };
 
           const stage = document.createElementNS("http://www.w3.org/2000/svg", "svg");
           stage.setAttribute("class", "absolute inset-0 w-full h-full");
@@ -697,20 +809,74 @@
             if (el.type==='line') { hit.setAttribute("x1", el.x1+bleedPx); hit.setAttribute("y1", el.y1+bleedPx); hit.setAttribute("x2", el.x2+bleedPx); hit.setAttribute("y2", el.y2+bleedPx); }
             else if (el.type==='rect') { hit.setAttribute("x", el.x+bleedPx); hit.setAttribute("y", el.y+bleedPx); hit.setAttribute("width", el.w); hit.setAttribute("height", el.h); }
             else { hit.setAttribute("cx", el.x+bleedPx); hit.setAttribute("cy", el.y+bleedPx); hit.setAttribute("r", 10); }
-            hit.onmousedown = (e) => { e.stopPropagation(); if (!state.selectedIndices.includes(i)) { if (!e.shiftKey) state.selectedIndices = [i]; else state.selectedIndices.push(i); } state.isDragging = true; state.dragElementIndex = i; state.startPoint = window.getSnappedCoords(e); updatePropsPanel(); window.renderWorkspace(); };
+            hit.onmousedown = (e) => {
+              e.stopPropagation();
+              if (!state.selectedIndices.includes(i)) {
+                if (!e.shiftKey) state.selectedIndices = [i];
+                else state.selectedIndices.push(i);
+              }
+              updatePropsPanel();
+              window.renderWorkspace();
+            };
             gElements.appendChild(hit);
+
+            if (isS && idx === state.currentPageIndex) {
+              const handles = getElementHandles(el, bleedPx);
+              handles.edges.forEach((pt) => {
+                const edgeHandle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                edgeHandle.setAttribute("cx", pt.x);
+                edgeHandle.setAttribute("cy", pt.y);
+                edgeHandle.setAttribute("r", "5");
+                edgeHandle.setAttribute("class", "handle-edge");
+                edgeHandle.onmousedown = (e) => {
+                  e.stopPropagation();
+                  state.isModifying = true;
+                  state.dragElementIndex = i;
+                  state.modifyHandleType = { kind: 'edge', index: handles.edges.indexOf(pt) };
+                  state.startPoint = window.getSnappedCoords(e);
+                };
+                gElements.appendChild(edgeHandle);
+              });
+
+              const centerHandle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+              centerHandle.setAttribute("cx", handles.center.x);
+              centerHandle.setAttribute("cy", handles.center.y);
+              centerHandle.setAttribute("r", "6");
+              centerHandle.setAttribute("class", "handle-center");
+              centerHandle.onmousedown = (e) => {
+                e.stopPropagation();
+                state.isDragging = true;
+                state.dragElementIndex = i;
+                state.startPoint = window.getSnappedCoords(e);
+              };
+              gElements.appendChild(centerHandle);
+            }
           });
 
           if (idx === state.currentPageIndex) {
               stage.onmousedown = (e) => {
                 const c = window.getSnappedCoords(e);
-                if (state.tool === 'select') { if (e.target === stage || e.target.classList.contains('visible-sheet')) { state.selectedIndices = []; window.renderWorkspace(); updatePropsPanel(); } return; }
+                if (e.target === stage || e.target.classList.contains('visible-sheet')) {
+                  if (state.selectedIndices.length > 0) {
+                    state.selectedIndices = [];
+                    updatePropsPanel();
+                    window.renderWorkspace();
+                    return;
+                  }
+                  if (state.tool === 'select') return;
+                }
                 state.isDrawing = true; state.startPoint = c;
               };
           }
         });
         updatePageIndicators();
-        requestAnimationFrame(centerActivePage);
+        requestAnimationFrame(() => {
+          if (state.viewMode === 'canvas') {
+            window.fitAuto();
+            centerActivePage();
+            state.lastCanvasPageIndex = state.currentPageIndex;
+          }
+        });
       };
 
       // --- Setup Handlers ---
@@ -718,16 +884,25 @@
       window.setupEventListeners = function() {
         window.onresize = () => {
           if (state.viewMode === 'notebook') window.renderWorkspace();
-          else window.fitAuto();
+          else {
+            window.fitAuto();
+            centerActivePage();
+          }
         };
         window.onmousemove = (e) => {
           const c = window.getSnappedCoords(e);
-          const bleedPx = state.bleedUnits * state.gridSize;
+          const bleedPx = getVisibleBleedPx();
           if (state.isDrawing) {
             const tl = document.getElementById(`tempLine-${state.currentPageIndex}`);
             const tr = document.getElementById(`tempRect-${state.currentPageIndex}`);
             if (state.tool === 'line' && tl) { tl.classList.remove('hidden'); tl.setAttribute('x1', state.startPoint.x + bleedPx); tl.setAttribute('y1', state.startPoint.y + bleedPx); tl.setAttribute('x2', c.x + bleedPx); tl.setAttribute('y2', c.y + bleedPx); } 
             else if (state.tool === 'rect' && tr) { tr.classList.remove('hidden'); tr.setAttribute('x', Math.min(state.startPoint.x, c.x) + bleedPx); tr.setAttribute('y', Math.min(state.startPoint.y, c.y) + bleedPx); tr.setAttribute('width', Math.abs(c.x - state.startPoint.x)); tr.setAttribute('height', Math.abs(c.y - state.startPoint.y)); }
+          }
+          if (state.isModifying && state.dragElementIndex !== null) {
+            const el = state.pages[state.currentPageIndex].elements[state.dragElementIndex];
+            applyHandleModification(el, state.modifyHandleType, c);
+            window.renderWorkspace();
+            return;
           }
           if (state.isDragging && state.selectedIndices.length > 0) {
             const dx = c.x - state.startPoint.x, dy = c.y - state.startPoint.y;
@@ -745,7 +920,10 @@
               state.pages[state.currentPageIndex].elements.push(el);
               window.renderWorkspace();
           }
+          state.isModifying = false;
+          state.modifyHandleType = null;
           state.isDragging = false;
+          state.dragElementIndex = null;
         };
         window.onkeydown = (e) => {
           const cmdCtrl = (navigator.platform.toUpperCase().indexOf('MAC') >= 0) ? e.metaKey : e.ctrlKey;
