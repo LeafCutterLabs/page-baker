@@ -288,7 +288,6 @@
       rulerTop.style.width = `${w}px`; rulerLeft.style.height = `${h}px`;
       document.querySelectorAll('.paper-btn').forEach(b => b.classList.toggle('bg-indigo-600', b.id === `btn-${type}`));
       document.querySelectorAll('.paper-btn').forEach(b => b.classList.toggle('text-white', b.id === `btn-${type}`));
-      document.querySelectorAll('.paper-btn').forEach(b => b.classList.toggle('text-slate-500', b.id !== `btn-${type}`));
       renderGrid(); renderElements();
     }
 
@@ -407,9 +406,10 @@
     function getSnappedCoords(e) {
       const rect = designStage.getBoundingClientRect();
       const rawX = (e.clientX - rect.left) / state.zoom, rawY = (e.clientY - rect.top) / state.zoom;
-      let step = state.gridSize;
-      const isTextAction = state.tool === 'label' || (state.tool === 'select' && state.selectedIndices.some(i => state.pages[state.currentPageIndex].elements[i].type === 'label'));
-      if (isTextAction) step /= 2;
+      
+      // All object snapping is now 1/2 grid
+      const step = state.gridSize / 2;
+
       const fx = Math.round((rawX - state.gridOffset.x) / step) * step + state.gridOffset.x;
       const fy = Math.round((rawY - state.gridOffset.y) / step) * step + state.gridOffset.y;
       const w = parseFloat(canvasWrapper.style.width), h = parseFloat(canvasWrapper.style.height), us = state.unit === 'in' ? PPI : PMM;
@@ -444,13 +444,18 @@
                 if (e.key.toLowerCase() === 'v') { e.preventDefault(); saveHistory(); el.y1 = 0; el.y2 = pH; el.x2 = el.x1; renderElements(); }
             }
             if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteSelected(); return; }
-            const isText = state.selectedIndices.some(idx => state.pages[state.currentPageIndex].elements[idx].type === 'label'), step = isText ? state.gridSize / 2 : state.gridSize;
+            
+            // All object nudging is now 1/2 grid
+            const step = state.gridSize / 2;
+
             let dx = 0, dy = 0;
             if (e.key === 'ArrowUp') dy = -step; if (e.key === 'ArrowDown') dy = step;
             if (e.key === 'ArrowLeft') dx = -step; if (e.key === 'ArrowRight') dx = step;
             if (dx !== 0 || dy !== 0) { 
               e.preventDefault(); saveHistory(); 
-              state.selectedIndices.forEach(idx => { const el = state.pages[state.currentPageIndex].elements[idx]; if (el.type === 'line') { el.x1 += dx; el.y1 += dy; el.x2 += dx; el.y2 += dy; } else { el.x += dx; el.y += dy; } }); renderElements();
+              state.selectedIndices.forEach(idx => { const el = state.pages[state.currentPageIndex].elements[idx];
+                if (el.type === 'line') { el.x1 += dx; el.y1 += dy; el.x2 += dx; el.y2 += dy; } else { el.x += dx; el.y += dy; }
+              }); renderElements();
             }
         }
       });
@@ -515,9 +520,7 @@
             let added = false; saveHistory();
             for (let gx = state.gridOffset.x; gx <= w + 0.1; gx += step) {
               for (let gy = state.gridOffset.y; gy <= h + 0.1; gy += step) {
-                // Modified check to be inclusive of snapped boundaries
                 if (gx >= xMin - 0.1 && gx <= xMax + 0.1 && gy >= yMin - 0.1 && gy <= yMax + 0.1) {
-                  // Only add if not strictly on the perimeter as requested
                   if (!(Math.abs(gx - xMin) < 0.1 || Math.abs(gx - xMax) < 0.1 || Math.abs(gy - yMin) < 0.1 || Math.abs(gy - yMax) < 0.1)) {
                     state.pages[state.currentPageIndex].elements.push({ type: state.tool, x: gx, y: gy, style: { dash: 'none', opacity: 100, weight: 1, crossSize: 6 } }); added = true;
                   }
@@ -631,7 +634,7 @@
 
     function updateSelectedStyle(p, v) { if (state.selectedIndices.length === 0) return; state.selectedIndices.forEach(idx => state.pages[state.currentPageIndex].elements[idx].style[p] = v); if (p==='opacity') document.getElementById('opacityVal').innerText = `${v}%`; if (p==='weight') document.getElementById('weightVal').innerText = `${v}px`; renderElements(); updatePropsPanel(); }
     function deleteSelected() { if (state.selectedIndices.length === 0) return; saveHistory(); state.pages[state.currentPageIndex].elements = state.pages[state.currentPageIndex].elements.filter((_, i) => !state.selectedIndices.includes(i)); state.selectedIndices = []; propsPanel.classList.add('hidden'); renderElements(); }
-    function clearCanvas() { if (confirm('Reset current page?')) { saveHistory(); state.pages[state.currentPageIndex].elements = []; state.selectedIndices = []; propsPanel.classList.add('hidden'); renderElements(); } }
+    function clearCanvas() { if (confirm('Reset page?')) { saveHistory(); state.pages[state.currentPageIndex].elements = []; state.selectedIndices = []; propsPanel.classList.add('hidden'); renderElements(); } }
     function saveHistory() { state.history.push(JSON.stringify(state.pages)); if (state.history.length > 50) state.history.shift(); }
     function undo() { if (state.history.length) { state.pages = JSON.parse(state.history.pop()); state.selectedIndices = []; propsPanel.classList.add('hidden'); renderElements(); updatePageIndicators(); } }
 
@@ -664,7 +667,6 @@
         pdf.setLineCap('round');
         page.elements.forEach(el => {
             const finalOp = ((el.style?.opacity || 100) / 100) * gOp;
-            // PDF Opacity Fix: Apply GState for EVERY individual element
             const gState = new pdf.GState({ opacity: finalOp, "stroke-opacity": finalOp });
             pdf.setGState(gState);
             pdf.setDrawColor(51, 65, 85); pdf.setLineWidth((el.style?.weight || 1) / scale);
