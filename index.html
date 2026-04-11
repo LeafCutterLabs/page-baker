@@ -14,33 +14,58 @@
     .grid-layer { pointer-events: none; transition: opacity 0.2s ease; }
     
     /* Selection & Hover Styles */
-    .element-hover { cursor: pointer; transition: stroke 0.2s; }
+    .element-hover { cursor: pointer; transition: stroke 0.2s; stroke-linecap: round; stroke-linejoin: round; }
     .element-hover:hover { stroke: #6366f1; stroke-width: 2px; }
     .element-selected { stroke: #6366f1 !important; stroke-width: 2.5px !important; filter: drop-shadow(0 0 4px rgba(99, 102, 241, 0.4)); }
     
-    /* Invisible Hit Area for easier selection - Placed ON TOP of visible element */
-    .hit-target { cursor: pointer; fill: transparent; stroke: transparent; stroke-width: 16px; pointer-events: all; }
+    /* Invisible Hit Area */
+    .hit-target { cursor: pointer; fill: transparent; stroke: transparent; stroke-width: 16px; pointer-events: all; stroke-linecap: round; }
     
     .handle { cursor: move; fill: #6366f1; stroke: white; stroke-width: 1.5; transition: r 0.2s; pointer-events: all; }
     .handle:hover { r: 6; }
     
-    .text-element { font-family: 'Helvetica', sans-serif; font-weight: bold; pointer-events: none; user-select: none; text-anchor: middle; dominant-baseline: middle; }
+    /* Text Box Styling */
+    .text-box-container { 
+      pointer-events: auto; 
+      overflow: visible; 
+      display: flex;
+      height: 100%;
+      background: rgba(165, 180, 252, 0.15); /* Persistent light purple background */
+      border: 1px solid rgba(99, 102, 241, 0.1);
+      position: relative;
+      box-sizing: border-box;
+    }
+    .text-box-content {
+      font-family: 'Helvetica', sans-serif;
+      line-height: 1.1;
+      color: #334155;
+      word-break: break-word;
+      width: 100%;
+      outline: none;
+      padding: 2px 4px;
+      font-weight: bold;
+      display: flex;
+      flex-direction: column;
+      white-space: pre-wrap; /* Preserves newlines */
+    }
+    .text-box-content[contenteditable="true"] {
+      background: rgba(255, 255, 255, 0.6);
+      cursor: text;
+    }
     
     /* Ruler Styles */
     .ruler { background: #fff; color: #94a3b8; font-family: monospace; font-size: 9px; font-weight: bold; pointer-events: none; border-color: #e2e8f0; }
-    .ruler-tick { stroke: #cbd5e1; stroke-width: 1; }
+    .ruler-tick { stroke: #cbd5e1; stroke-width: 1; stroke-linecap: round; }
     .ruler-label { fill: #94a3b8; }
     .ruler-center-marker { stroke: #6366f1; stroke-width: 1.5; }
 
     #rulerLayout { transform-origin: top center; transition: transform 0.2s ease-out; }
     
     input[type="range"] { accent-color: #6366f1; }
-    
-    input::-webkit-outer-spin-button,
-    input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
     input[type=number] { -moz-appearance: textfield; }
 
-    #marqueeBox { fill: rgba(99, 102, 241, 0.1); stroke: #6366f1; stroke-width: 1; stroke-dasharray: 4; pointer-events: none; }
+    #marqueeBox { fill: rgba(99, 102, 241, 0.1); stroke: #6366f1; stroke-width: 1; stroke-dasharray: 4; pointer-events: none; stroke-linecap: round; }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900 h-screen overflow-hidden font-sans">
@@ -95,23 +120,56 @@
         </div>
       </div>
       
-      <div class="flex items-center gap-3">
+      <div class="flex items-center gap-2">
         <button onclick="undo()" id="undoBtn" class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-30 transition-colors" disabled>
           <i data-lucide="undo" class="w-4 h-4"></i>
-          <span>Undo</span>
+          <span class="hidden sm:inline">Undo</span>
         </button>
         <button onclick="clearCanvas()" class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-rose-600 bg-white border border-rose-100 rounded-lg hover:bg-rose-50 transition-colors" title="Clear All">
           <i data-lucide="refresh-cw" class="w-4 h-4"></i>
-          <span>Reset</span>
+          <span class="hidden sm:inline">Reset</span>
         </button>
-        <button onclick="downloadPDF()" class="px-6 py-2 text-sm font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-md transition-all flex items-center gap-2">
+        <div class="h-8 w-px bg-slate-200 mx-1"></div>
+        <button onclick="downloadSVG()" class="px-4 py-2 text-sm font-bold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-all flex items-center gap-2">
+          <i data-lucide="download" class="w-4 h-4"></i>
+          <span>Bake SVG</span>
+        </button>
+        <button onclick="downloadPDF()" class="px-5 py-2 text-sm font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-md transition-all flex items-center gap-2">
           <i data-lucide="file-down" class="w-4 h-4"></i>
           <span>Bake PDF</span>
         </button>
       </div>
     </header>
 
+    <div class="bg-slate-50 border-b px-6 py-2 flex items-center justify-center gap-6 z-10">
+      <div class="flex items-center gap-2">
+        <button onclick="prevPage()" class="p-1.5 hover:bg-white rounded-lg border border-transparent hover:border-slate-200 transition-all text-slate-600">
+          <i data-lucide="chevron-left" class="w-4 h-4"></i>
+        </button>
+        <div class="bg-white px-4 py-1 rounded-full border border-slate-200 shadow-sm">
+          <span class="text-xs font-bold text-slate-600 uppercase tracking-widest">
+            Page <span id="currentPageDisplay">1</span> of <span id="totalPagesDisplay">1</span>
+          </span>
+        </div>
+        <button onclick="nextPage()" class="p-1.5 hover:bg-white rounded-lg border border-transparent hover:border-slate-200 transition-all text-slate-600">
+          <i data-lucide="chevron-right" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <div class="h-4 w-px bg-slate-300"></div>
+      <div class="flex items-center gap-2">
+        <button onclick="addPage()" class="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-600 text-xs font-bold rounded-lg border border-indigo-100 hover:bg-indigo-100 transition-all">
+          <i data-lucide="file-plus-2" class="w-4 h-4"></i>
+          <span>Add Page</span>
+        </button>
+        <button onclick="deletePage()" id="deletePageBtn" class="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-600 text-xs font-bold rounded-lg border border-rose-100 hover:bg-rose-100 transition-all">
+          <i data-lucide="file-minus-2" class="w-4 h-4"></i>
+          <span>Delete Page</span>
+        </button>
+      </div>
+    </div>
+
     <div class="flex-1 flex overflow-hidden">
+      <!-- Toolbox Sidebar -->
       <aside class="w-16 border-r bg-white flex flex-col items-center py-6 gap-4 z-10 shadow-sm">
         <button onclick="setTool('select')" id="tool-select" class="tool-btn p-3 rounded-xl text-slate-400 active-tool" title="Select / Move / Edit"><i data-lucide="mouse-pointer-2" class="w-6 h-6"></i></button>
         <div class="w-8 h-px bg-slate-100 my-2"></div>
@@ -119,7 +177,7 @@
         <button onclick="setTool('rect')" id="tool-rect" class="tool-btn p-3 rounded-xl text-slate-400" title="Box"><i data-lucide="square" class="w-6 h-6"></i></button>
         <button onclick="setTool('dot')" id="tool-dot" class="tool-btn p-3 rounded-xl text-slate-400" title="Dot (Shift+Drag to Fill Area)"><i data-lucide="dot" class="w-6 h-6"></i></button>
         <button onclick="setTool('cross')" id="tool-cross" class="tool-btn p-3 rounded-xl text-slate-400" title="Cross (Dbl Click, Shift+Drag to Fill Area)"><i data-lucide="plus" class="w-6 h-6"></i></button>
-        <button onclick="setTool('label')" id="tool-label" class="tool-btn p-3 rounded-xl text-slate-400" title="Grid Text"><i data-lucide="type" class="w-6 h-6"></i></button>
+        <button onclick="setTool('label')" id="tool-label" class="tool-btn p-3 rounded-xl text-slate-400" title="Grid Text Box (Drag 1/2 Snapped Area)"><i data-lucide="type" class="w-6 h-6"></i></button>
       </aside>
 
       <section id="viewport" class="flex-1 overflow-auto bg-slate-200/50 flex flex-col items-center p-12 no-scrollbar relative">
@@ -136,14 +194,15 @@
                 <g id="elementsGroup"></g>
                 <g id="handlesGroup"></g>
                 <circle id="snapDot" r="3" fill="#6366f1" class="opacity-0 pointer-events-none" />
-                <line id="tempLine" class="hidden" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="4" />
-                <rect id="tempRect" class="hidden" fill="rgba(99, 102, 241, 0.1)" stroke="#6366f1" stroke-width="1" stroke-dasharray="4" />
+                <line id="tempLine" class="hidden" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="4" stroke-linecap="round" />
+                <rect id="tempRect" class="hidden" fill="rgba(99, 102, 241, 0.1)" stroke="#6366f1" stroke-width="1" stroke-dasharray="4" stroke-linecap="round" />
                 <rect id="marqueeBox" class="hidden" />
               </svg>
             </div>
           </div>
         </div>
 
+        <!-- Floating Properties Panel -->
         <div id="propsPanel" class="hidden fixed top-24 right-8 bg-white border border-slate-200 p-5 rounded-2xl shadow-xl w-64 z-30">
           <div class="flex items-center justify-between mb-4 border-b pb-2">
             <span id="propsTitle" class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Properties</span>
@@ -155,11 +214,13 @@
               <div class="grid grid-cols-4 gap-1 bg-slate-100 p-1 rounded-lg">
                 <button onclick="updateSelectedStyle('dash', 'none')" id="style-none" class="style-btn px-1 py-1 text-[9px] font-bold rounded hover:bg-white transition-all">Solid</button>
                 <button onclick="updateSelectedStyle('dash', '5,5')" id="style-dashed" class="style-btn px-1 py-1 text-[9px] font-bold rounded hover:bg-white transition-all">Dash</button>
-                <button onclick="updateSelectedStyle('dash', '1,3')" id="style-dotted" class="style-btn px-1 py-1 text-[9px] font-bold rounded hover:bg-white transition-all">Dot</button>
-                <button onclick="updateSelectedStyle('dash', '8,4,1,4')" id="style-dashdot" class="style-btn px-1 py-1 text-[9px] font-bold rounded hover:bg-white transition-all">D-Dot</button>
+                <button onclick="updateSelectedStyle('dash', '0,4')" id="style-dotted" class="style-btn px-1 py-1 text-[9px] font-bold rounded hover:bg-white transition-all">Dot</button>
+                <button onclick="updateSelectedStyle('dash', '8,4,0,4')" id="style-dashdot" class="style-btn px-1 py-1 text-[9px] font-bold rounded hover:bg-white transition-all">D-Dot</button>
               </div>
             </div>
+
             <div id="typeSpecificProps"></div>
+
             <div class="grid grid-cols-2 gap-4">
                <div>
                   <div class="flex items-center justify-between mb-1">
@@ -207,9 +268,10 @@
 
     let state = {
       paper: 'letter', gridSize: 18, unit: 'in', tool: 'select', 
-      elements: [], history: [], zoom: 1.0, globalOpacity: 100,
+      pages: [{ elements: [] }], currentPageIndex: 0,
+      history: [], zoom: 1.0, globalOpacity: 100,
       isDrawing: false, isDragging: false, isModifying: false, isFilling: false, isSelecting: false,
-      activeKeys: {}, clipboard: [],
+      activeKeys: {}, clipboard: [], editingIndex: null,
       startPoint: null, dragElementIndex: null, selectedIndices: [], modifyHandleType: null,
       gridVisible: true, rulerVisible: true, gridOffset: { x: 0, y: 0 },
       gridType: 'standard', currentGridMode: 'in'
@@ -241,10 +303,11 @@
       setupEventListeners();
       updateGridSize('0.25');
       setTimeout(fitAuto, 300);
+      updatePageIndicators();
     }
 
     function setPaper(type) {
-      if (state.elements.length > 0) saveHistory();
+      if (state.pages.some(p => p.elements.length > 0)) saveHistory();
       state.paper = type; state.unit = PAPER_CONFIG[type].unit;
       const config = PAPER_CONFIG[type];
       const w = state.unit === 'in' ? config.width * PPI : config.width * PMM;
@@ -256,6 +319,12 @@
       document.querySelectorAll('.paper-btn').forEach(b => b.classList.toggle('text-slate-500', b.id !== `btn-${type}`));
       renderGrid(); renderElements();
     }
+
+    function addPage() { saveHistory(); state.pages.push({ elements: [] }); state.currentPageIndex = state.pages.length - 1; state.selectedIndices = []; renderElements(); updatePageIndicators(); }
+    function deletePage() { if (state.pages.length <= 1) return; saveHistory(); state.pages.splice(state.currentPageIndex, 1); state.currentPageIndex = Math.max(0, state.currentPageIndex - 1); state.selectedIndices = []; renderElements(); updatePageIndicators(); }
+    function prevPage() { if (state.currentPageIndex > 0) { state.currentPageIndex--; state.selectedIndices = []; renderElements(); updatePageIndicators(); } }
+    function nextPage() { if (state.currentPageIndex < state.pages.length - 1) { state.currentPageIndex++; state.selectedIndices = []; renderElements(); updatePageIndicators(); } }
+    function updatePageIndicators() { document.getElementById('currentPageDisplay').innerText = state.currentPageIndex + 1; document.getElementById('totalPagesDisplay').innerText = state.pages.length; document.getElementById('deletePageBtn').disabled = state.pages.length <= 1; }
 
     function updateZoom(newZoom) {
       state.zoom = Math.max(0.1, Math.min(3, newZoom));
@@ -357,8 +426,7 @@
     }
 
     function setTool(tool) {
-      state.tool = tool; state.selectedIndices = [];
-      propsPanel.classList.add('hidden');
+      state.tool = tool; state.selectedIndices = []; state.editingIndex = null; propsPanel.classList.add('hidden');
       document.querySelectorAll('.tool-btn').forEach(b => b.classList.toggle('bg-indigo-50', b.id === `tool-${tool}`));
       document.querySelectorAll('.tool-btn').forEach(b => b.classList.toggle('text-indigo-600', b.id === `tool-${tool}`));
       renderElements();
@@ -367,7 +435,9 @@
     function getSnappedCoords(e) {
       const rect = designStage.getBoundingClientRect();
       const rawX = (e.clientX - rect.left) / state.zoom, rawY = (e.clientY - rect.top) / state.zoom;
-      const step = state.gridSize;
+      let step = state.gridSize;
+      const isTextAction = state.tool === 'label' || (state.tool === 'select' && state.selectedIndices.some(i => state.pages[state.currentPageIndex].elements[i].type === 'label'));
+      if (isTextAction) step /= 2;
       const fx = Math.round((rawX - state.gridOffset.x) / step) * step + state.gridOffset.x;
       const fy = Math.round((rawY - state.gridOffset.y) / step) * step + state.gridOffset.y;
       const w = parseFloat(canvasWrapper.style.width), h = parseFloat(canvasWrapper.style.height), us = state.unit === 'in' ? PPI : PMM;
@@ -379,34 +449,36 @@
     function setupEventListeners() {
       window.addEventListener('keydown', e => { 
         state.activeKeys[e.key.toLowerCase()] = true;
+        if (state.editingIndex !== null) {
+            // Standard editable div behavior: Shift+Enter is a newline.
+            // We want plain Enter to finish editing.
+            return;
+        }
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
-            if (state.selectedIndices.length > 0) state.clipboard = state.selectedIndices.map(idx => JSON.parse(JSON.stringify(state.elements[idx])));
+            if (state.selectedIndices.length > 0) state.clipboard = state.selectedIndices.map(idx => JSON.parse(JSON.stringify(state.pages[state.currentPageIndex].elements[idx])));
         }
         if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
             if (state.clipboard.length > 0) {
-                e.preventDefault(); saveHistory();
-                const step = state.gridSize;
-                const newSelection = [];
+                e.preventDefault(); saveHistory(); const step = state.gridSize; const newSelection = [];
                 state.clipboard.forEach(orig => {
                     const n = JSON.parse(JSON.stringify(orig));
                     if (n.type === 'line') { n.x1 += step; n.y1 += step; n.x2 += step; n.y2 += step; } else { n.x += step; n.y += step; }
-                    state.elements.push(n); newSelection.push(state.elements.length - 1);
+                    state.pages[state.currentPageIndex].elements.push(n); newSelection.push(state.pages[state.currentPageIndex].elements.length - 1);
                 });
                 state.selectedIndices = newSelection; renderElements(); updatePropsPanel();
             }
         }
         if (state.selectedIndices.length > 0) {
             if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteSelected(); return; }
-            const step = state.gridSize; let dx = 0, dy = 0;
+            const isText = state.selectedIndices.some(idx => state.pages[state.currentPageIndex].elements[idx].type === 'label');
+            const step = isText ? state.gridSize / 2 : state.gridSize;
+            let dx = 0, dy = 0;
             if (e.key === 'ArrowUp') dy = -step; if (e.key === 'ArrowDown') dy = step;
             if (e.key === 'ArrowLeft') dx = -step; if (e.key === 'ArrowRight') dx = step;
-            if (dx !== 0 || dy !== 0) { 
-              e.preventDefault(); saveHistory(); 
-              state.selectedIndices.forEach(idx => {
-                const el = state.elements[idx];
+            if (dx !== 0 || dy !== 0) { e.preventDefault(); saveHistory(); 
+              state.selectedIndices.forEach(idx => { const el = state.pages[state.currentPageIndex].elements[idx];
                 if (el.type === 'line') { el.x1 += dx; el.y1 += dy; el.x2 += dx; el.y2 += dy; } else { el.x += dx; el.y += dy; }
-              });
-              renderElements();
+              }); renderElements();
             }
         }
       });
@@ -416,63 +488,49 @@
         const c = getSnappedCoords(e);
         if (state.tool === 'select') {
           if (e.target === designStage) { 
-            state.selectedIndices = []; state.isSelecting = true;
+            state.selectedIndices = []; state.isSelecting = true; state.editingIndex = null;
             state.startPoint = { x: (e.clientX - designStage.getBoundingClientRect().left) / state.zoom, y: (e.clientY - designStage.getBoundingClientRect().top) / state.zoom };
-            marqueeBox.setAttribute('x', state.startPoint.x); marqueeBox.setAttribute('y', state.startPoint.y);
-            marqueeBox.setAttribute('width', 0); marqueeBox.setAttribute('height', 0);
+            marqueeBox.setAttribute('x', state.startPoint.x); marqueeBox.setAttribute('y', state.startPoint.y); marqueeBox.setAttribute('width', 0); marqueeBox.setAttribute('height', 0);
             marqueeBox.classList.remove('hidden'); propsPanel.classList.add('hidden'); renderElements(); 
           }
           return;
         };
-        if (e.shiftKey && (state.tool === 'dot' || state.tool === 'cross')) {
-            state.isFilling = true; state.startPoint = c;
-            tempRect.setAttribute('x', c.x); tempRect.setAttribute('y', c.y); tempRect.classList.remove('hidden'); return;
-        }
+        if (e.shiftKey && (state.tool === 'dot' || state.tool === 'cross')) { state.isFilling = true; state.startPoint = c; tempRect.setAttribute('x', c.x); tempRect.setAttribute('y', c.y); tempRect.classList.remove('hidden'); return; }
         state.isDrawing = true; state.startPoint = c;
         if (state.tool === 'line') { tempLine.setAttribute('x1', c.x); tempLine.setAttribute('y1', c.y); tempLine.classList.remove('hidden'); }
-        if (state.tool === 'rect') { tempRect.setAttribute('x', c.x); tempRect.setAttribute('y', c.y); tempRect.classList.remove('hidden'); }
+        else { tempRect.setAttribute('x', c.x); tempRect.setAttribute('y', c.y); tempRect.classList.remove('hidden'); }
       });
 
       window.addEventListener('mousemove', e => {
         const rect = designStage.getBoundingClientRect();
-        const curX = (e.clientX - rect.left) / state.zoom, curY = (e.clientY - rect.top) / state.zoom;
-        const c = getSnappedCoords(e);
+        const curX = (e.clientX - rect.left) / state.zoom, curY = (e.clientY - rect.top) / state.zoom, c = getSnappedCoords(e);
         if (state.isSelecting) {
-            const x = Math.min(curX, state.startPoint.x), y = Math.min(curY, state.startPoint.y);
-            const w = Math.abs(curX - state.startPoint.x), h = Math.abs(curY - state.startPoint.y);
-            marqueeBox.setAttribute('x', x); marqueeBox.setAttribute('y', y);
-            marqueeBox.setAttribute('width', w); marqueeBox.setAttribute('height', h);
-            const currentSelection = [];
-            state.elements.forEach((el, idx) => { if (isInside(el, x, y, w, h)) currentSelection.push(idx); });
-            state.selectedIndices = currentSelection; renderElements(); return;
+            const x = Math.min(curX, state.startPoint.x), y = Math.min(curY, state.startPoint.y), w = Math.abs(curX - state.startPoint.x), h = Math.abs(curY - state.startPoint.y);
+            marqueeBox.setAttribute('x', x); marqueeBox.setAttribute('y', y); marqueeBox.setAttribute('width', w); marqueeBox.setAttribute('height', h);
+            const cur = []; state.pages[state.currentPageIndex].elements.forEach((el, idx) => { if (isInside(el, x, y, w, h)) cur.push(idx); });
+            state.selectedIndices = cur; renderElements(); return;
         }
         if (state.isFilling) {
-            const x = Math.min(c.x, state.startPoint.x), y = Math.min(c.y, state.startPoint.y);
-            const w = Math.abs(c.x - state.startPoint.x), h = Math.abs(c.y - state.startPoint.y);
-            tempRect.setAttribute('x', x); tempRect.setAttribute('y', y);
-            tempRect.setAttribute('width', w); tempRect.setAttribute('height', h); return;
+            const x = Math.min(c.x, state.startPoint.x), y = Math.min(c.y, state.startPoint.y), w = Math.abs(c.x - state.startPoint.x), h = Math.abs(c.y - state.startPoint.y);
+            tempRect.setAttribute('x', x); tempRect.setAttribute('y', y); tempRect.setAttribute('width', w); tempRect.setAttribute('height', h); return;
         }
         if (state.isModifying && state.selectedIndices.length === 1) {
-          const el = state.elements[state.selectedIndices[0]];
+          const el = state.pages[state.currentPageIndex].elements[state.selectedIndices[0]];
           if (state.modifyHandleType === 'start') { el.x1 = c.x; el.y1 = c.y; }
           else if (state.modifyHandleType === 'end') { el.x2 = c.x; el.y2 = c.y; }
-          else if (state.modifyHandleType === 'tl') { el.x = c.x; el.y = c.y; el.w = Math.max(state.gridSize, el.w + (el.x - c.x)); el.h = Math.max(state.gridSize, el.h + (el.y - c.y)); }
-          else if (state.modifyHandleType === 'br') { el.w = Math.max(state.gridSize, c.x - el.x); el.h = Math.max(state.gridSize, c.y - el.y); }
+          else if (state.modifyHandleType === 'tl') { el.x = c.x; el.y = c.y; el.w = Math.max(0, el.w + (el.x - c.x)); el.h = Math.max(0, el.h + (el.y - c.y)); }
+          else if (state.modifyHandleType === 'br') { el.w = Math.max(0, c.x - el.x); el.h = Math.max(0, c.y - el.y); }
           else if (state.modifyHandleType === 'center') { el.x = c.x; el.y = c.y; }
           renderElements(); return;
         }
         if (state.isDragging && state.selectedIndices.length > 0) {
-          const dx = c.x - state.startPoint.x; const dy = c.y - state.startPoint.y;
-          if (dx === 0 && dy === 0) return;
-          state.selectedIndices.forEach(idx => {
-            const el = state.elements[idx];
-            if (el.type === 'line') { el.x1 += dx; el.y1 += dy; el.x2 += dx; el.y2 += dy; } else { el.x += dx; el.y += dy; }
-          });
+          const dx = c.x - state.startPoint.x, dy = c.y - state.startPoint.y; if (dx === 0 && dy === 0) return;
+          state.selectedIndices.forEach(idx => { const el = state.pages[state.currentPageIndex].elements[idx]; if (el.type === 'line') { el.x1 += dx; el.y1 += dy; el.x2 += dx; el.y2 += dy; } else { el.x += dx; el.y += dy; } });
           state.startPoint = c; renderElements(); return;
         }
         if (!state.isDrawing) return;
         if (state.tool === 'line') { tempLine.setAttribute('x2', c.x); tempLine.setAttribute('y2', c.y); }
-        if (state.tool === 'rect') {
+        else {
           tempRect.setAttribute('x', Math.min(c.x, state.startPoint.x)); tempRect.setAttribute('y', Math.min(c.y, state.startPoint.y));
           tempRect.setAttribute('width', Math.abs(c.x - state.startPoint.x)); tempRect.setAttribute('height', Math.abs(c.y - state.startPoint.y));
         }
@@ -481,43 +539,51 @@
       window.addEventListener('mouseup', (e) => {
         if (state.isSelecting) { state.isSelecting = false; marqueeBox.classList.add('hidden'); if (state.selectedIndices.length > 0) updatePropsPanel(); return; }
         if (state.isFilling) {
-            state.isFilling = false; tempRect.classList.add('hidden');
-            const c = getSnappedCoords(e), xMin = Math.min(c.x, state.startPoint.x), xMax = Math.max(c.x, state.startPoint.x);
-            const yMin = Math.min(c.y, state.startPoint.y), yMax = Math.max(c.y, state.startPoint.y), step = state.gridSize, w = parseFloat(canvasWrapper.style.width), h = parseFloat(canvasWrapper.style.height);
+            state.isFilling = false; tempRect.classList.add('hidden'); const c = getSnappedCoords(e), xMin = Math.min(c.x, state.startPoint.x), xMax = Math.max(c.x, state.startPoint.x), yMin = Math.min(c.y, state.startPoint.y), yMax = Math.max(c.y, state.startPoint.y), step = state.gridSize, w = parseFloat(canvasWrapper.style.width), h = parseFloat(canvasWrapper.style.height);
             let added = false; saveHistory();
             for (let gx = state.gridOffset.x; gx <= w + 0.1; gx += step) {
               for (let gy = state.gridOffset.y; gy <= h + 0.1; gy += step) {
                 if (gx > xMin + 0.1 && gx < xMax - 0.1 && gy > yMin + 0.1 && gy < yMax - 0.1) {
-                  state.elements.push({ type: state.tool, x: gx, y: gy, style: { dash: 'none', opacity: 100, weight: 1, crossSize: 6 } });
-                  added = true;
+                  state.pages[state.currentPageIndex].elements.push({ type: state.tool, x: gx, y: gy, style: { dash: 'none', opacity: 100, weight: 1, crossSize: 6 } }); added = true;
                 }
               }
             }
             if (added) renderElements(); else state.history.pop(); return;
         }
         state.isDragging = false; state.isModifying = false; if (!state.isDrawing) return; state.isDrawing = false;
-        const c = getSnappedCoords(e); let el = null; const style = { dash: 'none', opacity: 100, weight: 1, crossSize: 6, textAlign: 'on' };
-        if (state.tool === 'line') { tempLine.classList.add('hidden'); el = { type: 'line', x1: state.startPoint.x, y1: state.startPoint.y, x2: c.x, y2: c.y, style }; }
-        if (state.tool === 'rect') { tempRect.classList.add('hidden'); el = { type: 'rect', x: Math.min(c.x, state.startPoint.x), y: Math.min(c.y, state.startPoint.y), w: Math.abs(c.x - state.startPoint.x), h: Math.abs(c.y - state.startPoint.y), style }; }
-        if (state.tool === 'dot') el = { type: 'dot', x: c.x, y: c.y, style };
-        if (state.tool === 'label') { const t = prompt("Text:", "Date:"); if (t) el = { type: 'label', x: c.x, y: c.y, text: t, style }; }
-        if (el) { saveHistory(); state.elements.push(el); renderElements(); }
+        const c = getSnappedCoords(e); let el = null; const s = { dash: 'none', opacity: 100, weight: 1, crossSize: 6, align: 'left', vAlign: 'top' };
+        if (state.tool === 'line') { tempLine.classList.add('hidden'); el = { type: 'line', x1: state.startPoint.x, y1: state.startPoint.y, x2: c.x, y2: c.y, style: s }; }
+        else {
+            tempRect.classList.add('hidden'); const x = Math.min(c.x, state.startPoint.x), y = Math.min(c.y, state.startPoint.y), w = Math.abs(c.x - state.startPoint.x), h = Math.abs(c.y - state.startPoint.y);
+            if (state.tool === 'rect') el = { type: 'rect', x, y, w, h, style: s };
+            if (state.tool === 'label') { 
+              el = { type: 'label', x, y, w, h, text: "", style: s }; 
+              saveHistory(); state.pages[state.currentPageIndex].elements.push(el);
+              state.selectedIndices = [state.pages[state.currentPageIndex].elements.length - 1];
+              state.editingIndex = state.selectedIndices[0]; renderElements(); updatePropsPanel(); return;
+            }
+        }
+        if (state.tool === 'dot') el = { type: 'dot', x: c.x, y: c.y, style: s };
+        if (el) { saveHistory(); state.pages[state.currentPageIndex].elements.push(el); renderElements(); }
       });
 
       designStage.addEventListener('dblclick', e => {
         const c = getSnappedCoords(e), w = parseFloat(canvasWrapper.style.width), h = parseFloat(canvasWrapper.style.height);
-        const style = { dash: 'none', opacity: 100, weight: 1, crossSize: 6, textAlign: 'on' };
-        if (state.tool === 'cross') { saveHistory(); state.elements.push({ type: 'cross', x: c.x, y: c.y, style }); renderElements(); return; }
-        if (state.activeKeys['h']) { saveHistory(); state.elements.push({ type: 'line', x1: 0, y1: c.y, x2: w, y2: c.y, style }); renderElements(); }
-        else if (state.activeKeys['v']) { saveHistory(); state.elements.push({ type: 'line', x1: c.x, y1: 0, x2: c.x, y2: h, style }); renderElements(); }
+        const s = { dash: 'none', opacity: 100, weight: 1, crossSize: 6, align: 'left', vAlign: 'top' };
+        if (state.tool === 'cross') { saveHistory(); state.pages[state.currentPageIndex].elements.push({ type: 'cross', x: c.x, y: c.y, style: s }); renderElements(); return; }
+        if (state.activeKeys['h']) { saveHistory(); state.pages[state.currentPageIndex].elements.push({ type: 'line', x1: 0, y1: c.y, x2: w, y2: c.y, style: s }); renderElements(); }
+        else if (state.activeKeys['v']) { saveHistory(); state.pages[state.currentPageIndex].elements.push({ type: 'line', x1: c.x, y1: 0, x2: c.x, y2: h, style: s }); renderElements(); }
       });
     }
 
     function isInside(el, x, y, w, h) {
-        if (el.type === 'line') return (el.x1 >= x && el.x1 <= x + w && el.y1 >= y && el.y1 <= y + h) && (el.x2 >= x && el.x2 <= x + w && el.y2 >= y && el.y2 <= y + h);
-        if (el.type === 'rect') return (el.x >= x && el.x + el.w <= x + w && el.y >= y && el.y + el.h <= y + h);
-        return (el.x >= x && el.x <= x + w && el.y >= y && el.y <= y + h);
+        if (el.type === 'line') return (el.x1 >= x && el.x1 <= x+w && el.y1 >= y && el.y1 <= y+h) && (el.x2 >= x && el.x2 <= x+w && el.y2 >= y && el.y2 <= y+h);
+        if (el.type === 'rect' || el.type === 'label') return (el.x >= x && el.x+el.w <= x+w && el.y >= y && el.y+el.h <= y+h);
+        return (el.x >= x && el.x <= x+w && el.y >= y && el.y <= y+h);
     }
+
+    function updateHAlign(idx, align) { state.pages[state.currentPageIndex].elements[idx].style.align = align; renderElements(); updatePropsPanel(); }
+    function updateVAlign(idx, vAlign) { state.pages[state.currentPageIndex].elements[idx].style.vAlign = vAlign; renderElements(); updatePropsPanel(); }
 
     function createHandle(x, y, type) {
       const h = document.createElementNS("http://www.w3.org/2000/svg", "circle");
@@ -528,124 +594,149 @@
 
     function renderElements() {
       elementsGroup.innerHTML = ''; handlesGroup.innerHTML = '';
-      const mOp = state.globalOpacity / 100;
-      state.elements.forEach((el, i) => {
-        const isS = state.selectedIndices.includes(i), elOp = (el.style?.opacity || 100) / 100, dash = el.style?.dash === 'none' ? '' : el.style?.dash, weight = el.style?.weight || 1, fOp = elOp * mOp;
-        
+      const mOp = state.globalOpacity / 100, elements = state.pages[state.currentPageIndex].elements;
+      elements.forEach((el, i) => {
+        const isS = state.selectedIndices.includes(i), isE = state.editingIndex === i;
+        const op = ((el.style?.opacity || 100)/100)*mOp, dash = el.style?.dash === 'none' ? '' : el.style?.dash, weight = el.style?.weight || 1;
+        const dynamicFontSize = Math.max(8, state.gridSize * 0.8);
         let node;
-        if (el.type === 'line') { node = document.createElementNS("http://www.w3.org/2000/svg", "line"); node.setAttribute("x1", el.x1); node.setAttribute("y1", el.y1); node.setAttribute("x2", el.x2); node.setAttribute("y2", el.y2); }
-        else if (el.type === 'rect') { node = document.createElementNS("http://www.w3.org/2000/svg", "rect"); node.setAttribute("x", el.x); node.setAttribute("y", el.y); node.setAttribute("width", el.w); node.setAttribute("height", el.h); node.setAttribute("fill", "none"); }
-        else if (el.type === 'dot') { node = document.createElementNS("http://www.w3.org/2000/svg", "circle"); node.setAttribute("cx", el.x); node.setAttribute("cy", el.y); node.setAttribute("r", 1.5); }
-        else if (el.type === 'cross') {
-          const s = el.style.crossSize || 6; node = document.createElementNS("http://www.w3.org/2000/svg", "g");
-          const hL = document.createElementNS("http://www.w3.org/2000/svg", "line"); hL.setAttribute("x1", el.x-s/2); hL.setAttribute("x2", el.x+s/2); hL.setAttribute("y1", el.y); hL.setAttribute("y2", el.y);
-          const vL = document.createElementNS("http://www.w3.org/2000/svg", "line"); vL.setAttribute("y1", el.y-s/2); vL.setAttribute("y2", el.y+s/2); vL.setAttribute("x1", el.x); vL.setAttribute("x2", el.x);
-          node.appendChild(hL); node.appendChild(vL);
-        } else if (el.type === 'label') {
-          node = document.createElementNS("http://www.w3.org/2000/svg", "text");
-          const yOff = el.style.textAlign === 'on' ? 0 : state.gridSize / 2;
-          node.setAttribute("x", el.x); node.setAttribute("y", el.y + yOff);
-          node.setAttribute("font-size", 12); node.textContent = el.text; node.setAttribute("class", "text-element");
-          if (el.style.textAlign === 'on') node.setAttribute("dominant-baseline", "alphabetic");
+        if (el.type==='line') { node = document.createElementNS("http://www.w3.org/2000/svg", "line"); node.setAttribute("x1", el.x1); node.setAttribute("y1", el.y1); node.setAttribute("x2", el.x2); node.setAttribute("y2", el.y2); node.setAttribute("stroke", "#334155"); node.setAttribute("stroke-width", weight); if (dash) node.setAttribute("stroke-dasharray", dash); }
+        else if (el.type==='rect') { node = document.createElementNS("http://www.w3.org/2000/svg", "rect"); node.setAttribute("x", el.x); node.setAttribute("y", el.y); node.setAttribute("width", el.w); node.setAttribute("height", el.h); node.setAttribute("fill", "none"); node.setAttribute("stroke", "#334155"); node.setAttribute("stroke-width", weight); if (dash) node.setAttribute("stroke-dasharray", dash); }
+        else if (el.type==='dot') { node = document.createElementNS("http://www.w3.org/2000/svg", "circle"); node.setAttribute("cx", el.x); node.setAttribute("cy", el.y); node.setAttribute("r", 1.5); node.setAttribute("fill", "#334155"); }
+        else if (el.type==='cross') { const s = el.style.crossSize || 6; node = document.createElementNS("http://www.w3.org/2000/svg", "g"); node.innerHTML = `<line x1="${el.x-s/2}" x2="${el.x+s/2}" y1="${el.y}" y2="${el.y}" stroke="#334155" stroke-width="${weight}"/><line y1="${el.y-s/2}" y2="${el.y+s/2}" x1="${el.x}" x2="${el.x}" stroke="#334155" stroke-width="${weight}"/>`; }
+        else if (el.type==='label') {
+           node = document.createElementNS("http://www.w3.org/2000/svg", "foreignObject");
+           node.setAttribute("x", el.x); node.setAttribute("y", el.y); node.setAttribute("width", el.w); node.setAttribute("height", el.h);
+           const vAlignMap = {'top':'flex-start', 'middle':'center', 'bottom':'flex-end'};
+           node.innerHTML = `
+           <div xmlns="http://www.w3.org/1999/xhtml" class="text-box-container" style="justify-content: ${vAlignMap[el.style.vAlign || 'top']};">
+             <div id="editable-${i}" class="text-box-content" ${isE ? 'contenteditable="true"' : ''} style="text-align:${el.style.align || 'left'}; font-size: ${dynamicFontSize}px;">${el.text}</div>
+           </div>`;
+           if (isE) {
+              setTimeout(() => {
+                const div = document.getElementById(`editable-${i}`);
+                if (div) { 
+                    div.focus(); const range = document.createRange(); range.selectNodeContents(div); const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range); 
+                    div.oninput = () => { el.text = div.innerText; };
+                    div.onkeydown = (ev) => {
+                      if (ev.key === 'Enter' && ev.shiftKey) {
+                        // Allow default Shift+Enter behavior for newline
+                      } else if (ev.key === 'Enter' && !ev.shiftKey) {
+                        ev.preventDefault(); div.blur(); // Enter finishes editing
+                      }
+                    };
+                    div.onblur = () => { if (state.editingIndex === i) { state.editingIndex = null; renderElements(); } }; 
+                }
+              }, 10);
+           }
         }
-        
-        if (node) {
-          const color = "#334155";
-          node.setAttribute("stroke", el.type === 'dot' || el.type === 'label' ? "none" : color);
-          node.setAttribute("fill", el.type === 'dot' || el.type === 'label' ? color : "none");
-          if (el.type !== 'dot' && el.type !== 'label') node.setAttribute("stroke-width", weight);
-          if (dash) node.setAttribute("stroke-dasharray", dash);
-          node.setAttribute("opacity", fOp); node.classList.add('element-hover'); if (isS) node.classList.add('element-selected');
-          elementsGroup.appendChild(node);
-          
-          const hit = document.createElementNS("http://www.w3.org/2000/svg", el.type === 'line' ? 'line' : (el.type === 'rect' ? 'rect' : 'circle'));
-          hit.setAttribute("class", "hit-target");
-          if (el.type === 'line') { hit.setAttribute("x1", el.x1); hit.setAttribute("y1", el.y1); hit.setAttribute("x2", el.x2); hit.setAttribute("y2", el.y2); }
-          else if (el.type === 'rect') { hit.setAttribute("x", el.x); hit.setAttribute("y", el.y); hit.setAttribute("width", el.w); hit.setAttribute("height", el.h); }
-          else { hit.setAttribute("cx", el.x); hit.setAttribute("cy", el.y); hit.setAttribute("r", 10); }
-          
-          hit.addEventListener('mousedown', e => { 
-            if (state.tool !== 'select') return;
-            e.stopPropagation(); 
-            if (!state.selectedIndices.includes(i)) {
-                if (!e.shiftKey) state.selectedIndices = [i];
-                else state.selectedIndices.push(i);
-                saveHistory();
-            }
-            state.isDragging = true; state.dragElementIndex = i; state.startPoint = getSnappedCoords(e); 
-            updatePropsPanel(); renderElements(); 
-          });
-          elementsGroup.appendChild(hit);
-
-          if (isS && state.selectedIndices.length === 1) {
-            if (el.type === 'line') { handlesGroup.appendChild(createHandle(el.x1, el.y1, 'start')); handlesGroup.appendChild(createHandle(el.x2, el.y2, 'end')); }
-            else if (el.type === 'rect') { handlesGroup.appendChild(createHandle(el.x, el.y, 'tl')); handlesGroup.appendChild(createHandle(el.x + el.w, el.y + el.h, 'br')); }
+        if (node) { node.setAttribute("opacity", op); node.classList.add('element-hover'); if (isS) node.classList.add('element-selected'); elementsGroup.appendChild(node); }
+        const hit = document.createElementNS("http://www.w3.org/2000/svg", (el.type==='line'?'line':(el.type==='rect'||el.type==='label'?'rect':'circle')));
+        hit.setAttribute("class", "hit-target");
+        if (el.type==='line') { hit.setAttribute("x1", el.x1); hit.setAttribute("y1", el.y1); hit.setAttribute("x2", el.x2); hit.setAttribute("y2", el.y2); }
+        else if (el.type==='rect'||el.type==='label') { hit.setAttribute("x", el.x); hit.setAttribute("y", el.y); hit.setAttribute("width", el.w); hit.setAttribute("height", el.h); }
+        else { hit.setAttribute("cx", el.x); hit.setAttribute("cy", el.y); hit.setAttribute("r", 10); }
+        hit.addEventListener('mousedown', e => { if (state.tool !== 'select') return; e.stopPropagation(); if (!state.selectedIndices.includes(i)) { if (!e.shiftKey) state.selectedIndices = [i]; else state.selectedIndices.push(i); saveHistory(); } state.isDragging = true; state.dragElementIndex = i; state.startPoint = getSnappedCoords(e); updatePropsPanel(); renderElements(); });
+        hit.addEventListener('dblclick', e => { if (el.type==='label') { state.editingIndex = i; renderElements(); } });
+        elementsGroup.appendChild(hit);
+        if (isS && state.selectedIndices.length === 1 && !isE) {
+            if (el.type==='line') { handlesGroup.appendChild(createHandle(el.x1, el.y1, 'start')); handlesGroup.appendChild(createHandle(el.x2, el.y2, 'end')); }
+            else if (el.type==='rect'||el.type==='label') { handlesGroup.appendChild(createHandle(el.x, el.y, 'tl')); handlesGroup.appendChild(createHandle(el.x+el.w, el.y+el.h, 'br')); }
             else { handlesGroup.appendChild(createHandle(el.x, el.y, 'center')); }
-          }
         }
       });
-      countDisplay.innerText = `${state.elements.length} Elements`; undoBtn.disabled = state.history.length === 0;
+      countDisplay.innerText = `${elements.length} Elements`; undoBtn.disabled = state.history.length === 0;
     }
 
     function updatePropsPanel() {
-      if (state.selectedIndices.length === 0) { propsPanel.classList.add('hidden'); return; }
-      const el = state.elements[state.selectedIndices[0]]; propsPanel.classList.remove('hidden');
-      propsTitle.innerText = state.selectedIndices.length > 1 ? `Properties (${state.selectedIndices.length})` : "Properties";
-      document.getElementById('opacityVal').innerText = `${el.style.opacity}%`;
-      document.getElementById('opacitySlider').value = el.style.opacity;
-      document.getElementById('weightVal').innerText = `${el.style.weight}px`;
-      document.getElementById('weightSlider').value = el.style.weight;
-      document.querySelectorAll('.style-btn').forEach(b => b.classList.remove('bg-white', 'shadow-sm', 'text-indigo-600'));
-      const dm = {'none':'style-none', '5,5':'style-dashed', '1,3':'style-dotted', '8,4,1,4':'style-dashdot'};
-      if (dm[el.style.dash]) document.getElementById(dm[el.style.dash]).classList.add('bg-white', 'shadow-sm', 'text-indigo-600');
+      const el = state.pages[state.currentPageIndex].elements[state.selectedIndices[0]]; if (!el) return; propsPanel.classList.remove('hidden');
+      propsTitle.innerText = state.selectedIndices.length > 1 ? `Batch Props (${state.selectedIndices.length})` : "Properties";
+      document.getElementById('opacityVal').innerText = `${el.style.opacity}%`; document.getElementById('opacitySlider').value = el.style.opacity;
+      document.getElementById('weightVal').innerText = `${el.style.weight}px`; document.getElementById('weightSlider').value = el.style.weight;
+      document.querySelectorAll('.style-btn').forEach(b => b.classList.toggle('bg-white', false));
+      const dashMap = {'none':'style-none', '5,5':'style-dashed', '0,4':'style-dotted', '8,4,0,4':'style-dashdot'};
+      if (dashMap[el.style.dash]) document.getElementById(dashMap[el.style.dash]).classList.add('bg-white', 'shadow-sm', 'text-indigo-600');
       typeSpecificProps.innerHTML = '';
       if (state.selectedIndices.length === 1) {
         if (el.type === 'cross') {
-          typeSpecificProps.innerHTML = `<label class="text-[9px] font-bold text-slate-400 uppercase block mb-2">Cross Size</label><div class="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-lg"><button onclick="updateSelectedStyle('crossSize', 4)" class="px-1 py-1 text-[9px] font-bold rounded ${el.style.crossSize==4?'bg-white shadow-sm text-indigo-600':''}">Small</button><button onclick="updateSelectedStyle('crossSize', 8)" class="px-1 py-1 text-[9px] font-bold rounded ${el.style.crossSize==8?'bg-white shadow-sm text-indigo-600':''}">Med</button><button onclick="updateSelectedStyle('crossSize', 14)" class="px-1 py-1 text-[9px] font-bold rounded ${el.style.crossSize==14?'bg-white shadow-sm text-indigo-600':''}">Large</button></div>`;
+          typeSpecificProps.innerHTML = `<label class="text-[9px] font-bold text-slate-400 uppercase block mb-2">Cross Size</label><div class="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-lg"><button onclick="updateSelectedStyle('crossSize', 4)" class="px-1 py-1 text-[9px] font-bold rounded ${el.style.crossSize==4?'bg-white shadow-sm text-indigo-600':''}">S</button><button onclick="updateSelectedStyle('crossSize', 8)" class="px-1 py-1 text-[9px] font-bold rounded ${el.style.crossSize==8?'bg-white shadow-sm text-indigo-600':''}">M</button><button onclick="updateSelectedStyle('crossSize', 14)" class="px-1 py-1 text-[9px] font-bold rounded ${el.style.crossSize==14?'bg-white shadow-sm text-indigo-600':''}">L</button></div>`;
         } else if (el.type === 'label') {
-          typeSpecificProps.innerHTML = `<label class="text-[9px] font-bold text-slate-400 uppercase block mb-2">Alignment</label><div class="grid grid-cols-2 gap-1 bg-slate-100 p-1 rounded-lg"><button onclick="updateSelectedStyle('textAlign', 'on')" class="px-1 py-1 text-[9px] font-bold rounded ${el.style.textAlign=='on'?'bg-white shadow-sm text-indigo-600':''}">On Line</button><button onclick="updateSelectedStyle('textAlign', 'between')" class="px-1 py-1 text-[9px] font-bold rounded ${el.style.textAlign=='between'?'bg-white shadow-sm text-indigo-600':''}">Between</button></div>`;
+          typeSpecificProps.innerHTML = `
+          <label class="text-[9px] font-bold text-slate-400 uppercase block mb-2">Horizontal Align</label>
+          <div class="grid grid-cols-4 gap-1 bg-slate-100 p-1 rounded-lg mb-4">
+            <button onclick="updateHAlign(${state.selectedIndices[0]}, 'left')" class="p-1.5 rounded ${el.style.align==='left'?'bg-white text-indigo-600 shadow-sm':''}"><i data-lucide="align-left" class="w-3.5 h-3.5 mx-auto"></i></button>
+            <button onclick="updateHAlign(${state.selectedIndices[0]}, 'center')" class="p-1.5 rounded ${el.style.align==='center'?'bg-white text-indigo-600 shadow-sm':''}"><i data-lucide="align-center" class="w-3.5 h-3.5 mx-auto"></i></button>
+            <button onclick="updateHAlign(${state.selectedIndices[0]}, 'right')" class="p-1.5 rounded ${el.style.align==='right'?'bg-white text-indigo-600 shadow-sm':''}"><i data-lucide="align-right" class="w-3.5 h-3.5 mx-auto"></i></button>
+            <button onclick="updateHAlign(${state.selectedIndices[0]}, 'justify')" class="p-1.5 rounded ${el.style.align==='justify'?'bg-white text-indigo-600 shadow-sm':''}"><i data-lucide="align-justify" class="w-3.5 h-3.5 mx-auto"></i></button>
+          </div>
+          <label class="text-[9px] font-bold text-slate-400 uppercase block mb-2">Vertical Align</label>
+          <div class="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-lg">
+            <button onclick="updateVAlign(${state.selectedIndices[0]}, 'top')" class="p-1.5 rounded ${el.style.vAlign==='top'?'bg-white text-indigo-600 shadow-sm':''}"><i data-lucide="align-vertical-justify-start" class="w-3.5 h-3.5 mx-auto"></i></button>
+            <button onclick="updateVAlign(${state.selectedIndices[0]}, 'middle')" class="p-1.5 rounded ${el.style.vAlign==='middle'?'bg-white text-indigo-600 shadow-sm':''}"><i data-lucide="align-vertical-justify-center" class="w-3.5 h-3.5 mx-auto"></i></button>
+            <button onclick="updateVAlign(${state.selectedIndices[0]}, 'bottom')" class="p-1.5 rounded ${el.style.vAlign==='bottom'?'bg-white text-indigo-600 shadow-sm':''}"><i data-lucide="align-vertical-justify-end" class="w-3.5 h-3.5 mx-auto"></i></button>
+          </div>`;
+          setTimeout(() => lucide.createIcons(), 0);
         }
       }
     }
 
-    function updateSelectedStyle(prop, val) {
-      if (state.selectedIndices.length === 0) return;
-      state.selectedIndices.forEach(idx => state.elements[idx].style[prop] = val);
-      if (prop === 'opacity') document.getElementById('opacityVal').innerText = `${val}%`;
-      if (prop === 'weight') document.getElementById('weightVal').innerText = `${val}px`;
-      renderElements(); updatePropsPanel();
+    function updateSelectedStyle(prop, val) { if (state.selectedIndices.length === 0) return; state.selectedIndices.forEach(idx => state.pages[state.currentPageIndex].elements[idx].style[prop] = val); if (prop==='opacity') document.getElementById('opacityVal').innerText = `${val}%`; if (prop==='weight') document.getElementById('weightVal').innerText = `${val}px`; renderElements(); updatePropsPanel(); }
+    function deleteSelected() { if (state.selectedIndices.length === 0) return; saveHistory(); state.pages[state.currentPageIndex].elements = state.pages[state.currentPageIndex].elements.filter((_, i) => !state.selectedIndices.includes(i)); state.selectedIndices = []; propsPanel.classList.add('hidden'); renderElements(); }
+    function clearCanvas() { if (confirm('Reset current page?')) { saveHistory(); state.pages[state.currentPageIndex].elements = []; state.selectedIndices = []; propsPanel.classList.add('hidden'); renderElements(); } }
+    function saveHistory() { state.history.push(JSON.stringify(state.pages)); if (state.history.length > 50) state.history.shift(); }
+    function undo() { if (state.history.length) { state.pages = JSON.parse(state.history.pop()); state.selectedIndices = []; propsPanel.classList.add('hidden'); renderElements(); updatePageIndicators(); } }
+
+    function downloadSVG() {
+      const conf = PAPER_CONFIG[state.paper], w = parseFloat(canvasWrapper.style.width), h = parseFloat(canvasWrapper.style.height), mOp = state.globalOpacity / 100;
+      let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${conf.width}${conf.unit}" height="${conf.height}${conf.unit}" viewBox="0 0 ${w} ${h}">`;
+      svg += `<rect width="100%" height="100%" fill="white"/>`;
+      state.pages[state.currentPageIndex].elements.forEach(el => {
+        const op = ((el.style?.opacity || 100) / 100) * mOp, dash = el.style?.dash === 'none' ? '' : el.style?.dash, weight = el.style?.weight || 1;
+        if (el.type==='line') svg += `<line x1="${el.x1}" y1="${el.y1}" x2="${el.x2}" y2="${el.y2}" stroke="#334155" stroke-width="${weight}" stroke-dasharray="${dash}" opacity="${op}" stroke-linecap="round"/>`;
+        else if (el.type==='rect') svg += `<rect x="${el.x}" y="${el.y}" width="${el.w}" height="${el.h}" stroke="#334155" stroke-width="${weight}" stroke-dasharray="${dash}" fill="none" opacity="${op}" stroke-linecap="round"/>`;
+        else if (el.type==='dot') svg += `<circle cx="${el.x}" cy="${el.y}" r="1.5" fill="#334155" opacity="${op}"/>`;
+        else if (el.type==='cross') { const s = el.style.crossSize || 6; svg += `<g stroke="#334155" stroke-width="${weight}" opacity="${op}" stroke-linecap="round"><line x1="${el.x-s/2}" y1="${el.y}" x2="${el.x+s/2}" y2="${el.y}"/><line x1="${el.x}" y1="${el.y-s/2}" x2="${el.x}" y2="${el.y+s/2}"/></g>`; }
+        else if (el.type==='label') {
+           const lines = el.text.split('\n');
+           const fs = Math.max(8, state.gridSize * 0.8);
+           const align = el.style.align === 'center' ? 'middle' : (el.style.align === 'right' ? 'end' : 'start');
+           const xPos = el.x + (el.style.align === 'center' ? el.w/2 : (el.style.align === 'right' ? el.w : 0));
+           const startY = el.y + (el.style.vAlign === 'middle' ? (el.h - (lines.length * fs)) / 2 : (el.style.vAlign === 'bottom' ? el.h - (lines.length * fs) : 0));
+           lines.forEach((line, lIdx) => {
+             svg += `<text x="${xPos}" y="${startY + (lIdx * fs) + fs}" fill="#334155" font-size="${fs}" font-family="Helvetica" font-weight="bold" text-anchor="${align}" opacity="${op}">${line}</text>`;
+           });
+        }
+      });
+      svg += `</svg>`;
+      const b = new Blob([svg], {type: 'image/svg+xml'}), u = URL.createObjectURL(b), a = document.createElement('a'); a.href = u; a.download = `baked-page-${state.currentPageIndex+1}.svg`; a.click(); URL.revokeObjectURL(u);
     }
 
-    function deleteSelected() { if (state.selectedIndices.length === 0) return; saveHistory(); state.elements = state.elements.filter((_, i) => !state.selectedIndices.includes(i)); state.selectedIndices = []; propsPanel.classList.add('hidden'); renderElements(); }
-    function clearCanvas() { if (confirm('Reset?')) { saveHistory(); state.elements = []; state.selectedIndices = []; propsPanel.classList.add('hidden'); renderElements(); } }
-    function saveHistory() { state.history.push(JSON.stringify(state.elements)); if (state.history.length > 50) state.history.shift(); }
-    function undo() { if (state.history.length) { state.elements = JSON.parse(state.history.pop()); state.selectedIndices = []; propsPanel.classList.add('hidden'); renderElements(); } }
-
     async function downloadPDF() {
-      const { jsPDF } = window.jspdf; const conf = PAPER_CONFIG[state.paper];
-      const pdf = new jsPDF({ orientation: conf.width > conf.height ? 'l' : 'p', unit: state.unit, format: state.paper });
+      const { jsPDF } = window.jspdf; const conf = PAPER_CONFIG[state.paper], pdf = new jsPDF({ orientation: conf.width > conf.height ? 'l' : 'p', unit: state.unit, format: state.paper });
       const scale = state.unit === 'in' ? PPI : PMM, globalOp = state.globalOpacity / 100;
-      state.elements.forEach(el => {
-        const elOp = (el.style?.opacity || 100) / 100;
-        const finalOp = elOp * globalOp;
-        pdf.setGState(new pdf.GState({ opacity: finalOp, strokeOpacity: finalOp }));
-        pdf.setDrawColor(60, 60, 70); pdf.setLineWidth((el.style?.weight || 1) / scale);
-        if (el.style?.dash !== 'none') {
-           const d = {'5,5':[5,5], '1,3':[1,3], '8,4,1,4':[8,4,1,4]}[el.style.dash];
-           pdf.setLineDashPattern(d.map(v => v/scale), 0);
-        } else pdf.setLineDashPattern([], 0);
-        if (el.type === 'line') pdf.line(el.x1/scale, el.y1/scale, el.x2/scale, el.y2/scale);
-        if (el.type === 'rect') pdf.rect(el.x/scale, el.y/scale, el.w/scale, el.h/scale);
-        if (el.type === 'dot') { pdf.setFillColor(60,60,70); pdf.circle(el.x/scale, el.y/scale, 1.5/scale, 'F'); }
-        if (el.type === 'cross') { const s = el.style.crossSize || 6; pdf.line((el.x-s/2)/scale, el.y/scale, (el.x+s/2)/scale, el.y/scale); pdf.line(el.x/scale, (el.y-s/2)/scale, el.x/scale, (el.y+s/2)/scale); }
-        if (el.type === 'label') { 
-          pdf.setFont("helvetica", "bold"); pdf.setFontSize(9);
-          pdf.text(el.text, el.x/scale, (el.y + (el.style.textAlign === 'on' ? 0 : state.gridSize / 2))/scale, { align: 'center', baseline: el.style.textAlign === 'on' ? 'bottom' : 'middle' });
-        }
+      state.pages.forEach((page, pIdx) => {
+        if (pIdx > 0) pdf.addPage(state.paper, conf.width > conf.height ? 'l' : 'p');
+        pdf.setLineCap('round');
+        page.elements.forEach(el => {
+            const finalOp = ((el.style?.opacity || 100) / 100) * globalOp;
+            pdf.setGState(new pdf.GState({ opacity: finalOp, strokeOpacity: finalOp }));
+            pdf.setDrawColor(51, 65, 85); pdf.setLineWidth((el.style?.weight || 1) / scale);
+            if (el.style?.dash !== 'none') { const d = {'5,5':[5,5], '0,4':[0,4], '8,4,0,4':[8,4,0,4]}[el.style.dash]; pdf.setLineDashPattern(d.map(v => v/scale), 0); } else pdf.setLineDashPattern([], 0);
+            if (el.type === 'line') pdf.line(el.x1/scale, el.y1/scale, el.x2/scale, el.y2/scale);
+            if (el.type === 'rect') pdf.rect(el.x/scale, el.y/scale, el.w/scale, el.h/scale);
+            if (el.type === 'dot') { pdf.setFillColor(51, 65, 85); pdf.circle(el.x/scale, el.y/scale, 1.5/scale, 'F'); }
+            if (el.type === 'cross') { const s = el.style.crossSize || 6; pdf.line((el.x-s/2)/scale, el.y/scale, (el.x+s/2)/scale, el.y/scale); pdf.line(el.x/scale, (el.y-s/2)/scale, el.x/scale, (el.y+s/2)/scale); }
+            if (el.type === 'label') { 
+              const fs = Math.max(7, state.gridSize * 0.8);
+              pdf.setFont("helvetica", "bold"); pdf.setFontSize(fs * (72/96));
+              const xOff = el.style.align==='center'?el.w/2:(el.style.align==='right'?el.w:0);
+              const yOff = el.style.vAlign==='middle'?el.h/2:(el.style.vAlign==='bottom'?el.h:10);
+              pdf.text(el.text, (el.x + xOff)/scale, (el.y + yOff)/scale, { align: el.style.align === 'justify' ? 'left' : el.style.align, baseline: el.style.vAlign === 'top' ? 'top' : (el.style.vAlign === 'bottom' ? 'bottom' : 'middle'), maxWidth: el.w/scale }); 
+            }
+        });
       });
       pdf.save(`baked-notebook.pdf`);
     }
-
     init();
   </script>
 </body>
