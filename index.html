@@ -20,11 +20,13 @@
     
     /* Invisible Hit Area */
     .hit-target { cursor: pointer; fill: transparent; stroke: transparent; stroke-width: 16px; pointer-events: all; stroke-linecap: round; }
+    .hit-target-selected { cursor: default; }
+    .is-grabbing, .is-grabbing * { cursor: grabbing !important; }
     
     .handle { cursor: move; fill: #6366f1; stroke: white; stroke-width: 1.5; transition: r 0.2s; pointer-events: all; }
     .handle:hover { r: 6; }
-    .handle-edge { fill: white; stroke: #6366f1; stroke-width: 2; cursor: pointer; }
-    .handle-center { cursor: move; fill: #6366f1; stroke: white; stroke-width: 2; }
+    .handle-edge { fill: white; stroke: #6366f1; stroke-width: 2; cursor: grab; }
+    .handle-center { cursor: grab; fill: #6366f1; stroke: white; stroke-width: 2; }
     
     /* Text Box Styling */
     .text-box-container { 
@@ -172,11 +174,31 @@
         opacity: 0;
         pointer-events: none;
     }
+    .pattern-icon {
+        display: block;
+        width: 20px;
+        height: 8px;
+    }
+    .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.28);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 50;
+    }
+    .modal-backdrop.hidden { display: none; }
+    .quality-option.active {
+        border-color: #6366f1;
+        background: #eef2ff;
+        box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.18);
+    }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900 h-screen overflow-hidden font-sans">
   <div class="h-full flex flex-col" id="app">
-    <header class="border-b bg-white px-6 py-3 shadow-sm flex items-center justify-between z-20">
+    <header class="border-b bg-white px-6 py-2 shadow-sm flex items-center justify-between z-20">
       <div class="flex items-center gap-4">
         <div class="flex flex-col">
           <h1 class="text-xl font-bold tracking-tight text-indigo-900 leading-none italic">PAGE-BAKER</h1>
@@ -220,6 +242,7 @@
           <button onclick="window.nextPage()" class="p-1.5 hover:bg-white rounded-md transition-all text-slate-600"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
           <div class="w-px h-4 bg-slate-200 mx-1"></div>
           <button onclick="window.addPage()" class="p-1.5 text-indigo-600 hover:bg-white rounded-md transition-all" title="Add Page"><i data-lucide="file-plus-2" class="w-4 h-4"></i></button>
+          <button onclick="window.copyPage()" class="p-1.5 text-sky-600 hover:bg-white rounded-md transition-all" title="Copy Page"><i data-lucide="copy" class="w-4 h-4"></i></button>
           <button onclick="window.deletePage()" id="deletePageBtn" class="p-1.5 text-rose-600 hover:bg-white rounded-md transition-all" title="Delete Page"><i data-lucide="file-minus-2" class="w-4 h-4"></i></button>
           <div class="w-px h-4 bg-slate-200 mx-1"></div>
           <button onclick="window.toggleNotebookView()" id="viewToggle" class="p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white rounded-md transition-all" title="Notebook View"><i data-lucide="layout-grid" class="w-4 h-4"></i></button>
@@ -227,34 +250,35 @@
       </div>
       
       <div class="flex items-center gap-2">
-        <div id="selectionToolbar" class="selection-toolbar hidden flex items-center gap-3 mr-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl min-h-[52px]">
-          <span id="selectionToolbarTitle" class="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Properties</span>
-          <div class="grid grid-cols-4 gap-1 bg-white p-1 rounded-lg border border-slate-200">
-            <button onclick="window.updateSelectedStyle('dash', 'none')" id="style-none" class="style-btn px-2 py-1 text-[9px] font-bold rounded hover:bg-slate-50 transition-all">Solid</button>
-            <button onclick="window.updateSelectedStyle('dash', '5,5')" id="style-dashed" class="style-btn px-2 py-1 text-[9px] font-bold rounded hover:bg-slate-50 transition-all">Dash</button>
-            <button onclick="window.updateSelectedStyle('dash', '0,4')" id="style-dotted" class="style-btn px-2 py-1 text-[9px] font-bold rounded hover:bg-slate-50 transition-all">Dot</button>
-            <button onclick="window.updateSelectedStyle('dash', '8,4,0,4')" id="style-dashdot" class="style-btn px-2 py-1 text-[9px] font-bold rounded hover:bg-slate-50 transition-all">D-Dot</button>
+        <div id="selectionToolbar" class="selection-toolbar hidden flex items-center self-stretch gap-2 mr-2 px-2 py-0.5 bg-slate-50 border border-slate-200 rounded-xl min-h-0">
+          <span id="selectionToolbarTitle" class="text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Properties</span>
+          <div class="grid grid-cols-4 gap-1 bg-white p-0.5 rounded-lg border border-slate-200">
+            <button onclick="window.updateSelectedStyle('dash', 'none')" id="style-none" class="style-btn px-2 py-1 rounded hover:bg-slate-50 transition-all" title="Solid">
+              <svg viewBox="0 0 20 8" class="pattern-icon" aria-hidden="true"><line x1="1" y1="4" x2="19" y2="4" stroke="#334155" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </button>
+            <button onclick="window.updateSelectedStyle('dash', '5,5')" id="style-dashed" class="style-btn px-2 py-1 rounded hover:bg-slate-50 transition-all" title="Dash">
+              <svg viewBox="0 0 20 8" class="pattern-icon" aria-hidden="true"><line x1="1" y1="4" x2="19" y2="4" stroke="#334155" stroke-width="1.8" stroke-linecap="round" stroke-dasharray="5 4"/></svg>
+            </button>
+            <button onclick="window.updateSelectedStyle('dash', '0,4')" id="style-dotted" class="style-btn px-2 py-1 rounded hover:bg-slate-50 transition-all" title="Dot">
+              <svg viewBox="0 0 20 8" class="pattern-icon" aria-hidden="true"><line x1="1" y1="4" x2="19" y2="4" stroke="#334155" stroke-width="1.8" stroke-linecap="round" stroke-dasharray="0.001 4"/></svg>
+            </button>
+            <button onclick="window.updateSelectedStyle('dash', '8,4,0,4')" id="style-dashdot" class="style-btn px-2 py-1 rounded hover:bg-slate-50 transition-all" title="Dash Dot">
+              <svg viewBox="0 0 20 8" class="pattern-icon" aria-hidden="true"><line x1="1" y1="4" x2="19" y2="4" stroke="#334155" stroke-width="1.8" stroke-linecap="round" stroke-dasharray="8 3 0.001 3"/></svg>
+            </button>
           </div>
-          <div class="flex items-center gap-2">
-            <label class="text-[9px] font-bold text-slate-400 uppercase whitespace-nowrap">Weight</label>
-            <span id="weightVal" class="text-[10px] font-bold text-indigo-600 w-8 text-center">1px</span>
-            <input type="range" min="0.5" max="5" step="0.5" value="1" id="weightSlider" oninput="window.updateSelectedStyle('weight', this.value)" class="w-20 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer">
+          <div class="flex items-center gap-1.5">
+            <label class="text-[8px] font-bold text-slate-400 uppercase whitespace-nowrap">Weight</label>
+            <span id="weightVal" class="text-[9px] font-bold text-indigo-600 w-8 text-center">1px</span>
+            <input type="range" min="0.5" max="10" step="0.5" value="1" id="weightSlider" oninput="window.updateSelectedStyle('weight', this.value)" class="w-16 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer">
           </div>
-          <div class="flex items-center gap-2">
-            <label class="text-[9px] font-bold text-slate-400 uppercase whitespace-nowrap">Opacity</label>
-            <span id="opacityVal" class="text-[10px] font-bold text-indigo-600 w-10 text-center">100%</span>
-            <input type="range" min="10" max="100" step="10" value="100" id="opacitySlider" oninput="window.updateSelectedStyle('opacity', this.value)" class="w-20 h-1 bg-slate-200 appearance-none cursor-pointer">
+          <div class="flex items-center gap-1.5">
+            <label class="text-[8px] font-bold text-slate-400 uppercase whitespace-nowrap">Opacity</label>
+            <span id="opacityVal" class="text-[9px] font-bold text-indigo-600 w-10 text-center">100%</span>
+            <input type="range" min="5" max="100" step="5" value="100" id="opacitySlider" oninput="window.updateSelectedStyle('opacity', this.value)" class="w-16 h-1 bg-slate-200 appearance-none cursor-pointer">
           </div>
           <button onclick="window.deleteSelected()" class="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors" title="Delete Selected"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
         </div>
         <div class="flex items-center gap-3 border-r pr-3 border-slate-200 mr-2">
-          <div class="flex flex-col items-start gap-0.5">
-            <div class="flex items-center gap-1">
-              <span class="text-[8px] font-bold text-slate-400 uppercase leading-none">Opacity %</span>
-              <input type="number" id="globalOpacityInput" min="0" max="100" value="100" onchange="window.updateGlobalOpacity(this.value)" class="w-7 text-[10px] font-bold text-indigo-600 bg-slate-50 rounded px-1 border-none focus:ring-1 ring-indigo-300 text-center">
-            </div>
-            <input type="range" id="globalOpacitySlider" min="0" max="100" step="1" value="100" oninput="window.updateGlobalOpacity(this.value)" class="w-20 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer">
-          </div>
           <button onclick="window.toggleGrid()" id="gridToggle" class="p-2 text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm" title="Toggle Grid"><i data-lucide="grid" class="w-4 h-4"></i></button>
           <button onclick="window.toggleRulers()" id="rulerToggle" class="p-2 text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm" title="Toggle Rulers"><i data-lucide="ruler" class="w-4 h-4"></i></button>
           <button onclick="window.toggleBleed()" id="bleedToggle" class="p-2 text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors shadow-sm" title="Toggle Bleed"><i data-lucide="droplets" class="w-4 h-4"></i></button>
@@ -267,7 +291,7 @@
         <button onclick="window.clearCanvas()" class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-rose-600 bg-white border border-rose-100 rounded-lg hover:bg-rose-50 transition-colors" title="Clear All"><i data-lucide="refresh-cw" class="w-4 h-4"></i><span class="hidden sm:inline">Reset</span></button>
         <div class="h-8 w-px bg-slate-200 mx-1"></div>
         <button onclick="window.downloadPDF()" class="px-5 py-2 text-sm font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-md transition-all flex items-center gap-2">
-          <i data-lucide="file-down" class="w-4 h-4"></i>
+          <i data-lucide="cooking-pot" class="w-4 h-4"></i>
           <span>Bake PDF</span>
         </button>
       </div>
@@ -288,6 +312,25 @@
       <section id="viewport" class="flex-1 overflow-auto bg-slate-200/50 flex flex-col items-center px-12 pt-[5px] pb-1 no-scrollbar relative">
         <div id="workspace" class="flex flex-row items-start gap-12 transition-all"></div>
       </section>
+    </div>
+  </div>
+
+  <div id="qualityModal" class="modal-backdrop hidden">
+    <div class="w-[440px] max-w-[92vw] bg-white border border-slate-200 rounded-2xl shadow-2xl p-5">
+      <div class="flex items-start justify-between gap-4 mb-4">
+        <div>
+          <h2 class="text-sm font-black text-slate-800 uppercase tracking-widest">Bake PDF</h2>
+          <p class="text-xs text-slate-500 mt-1">Choose export quality and estimated file size.</p>
+        </div>
+        <button onclick="window.closeQualityModal()" class="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg" title="Close">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <div id="qualityOptions" class="space-y-2"></div>
+      <div class="flex items-center justify-end gap-2 mt-5">
+        <button onclick="window.closeQualityModal()" class="px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
+        <button onclick="window.confirmQualityModal()" class="px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700">Download</button>
+      </div>
     </div>
   </div>
 
@@ -316,13 +359,23 @@
         bleedVisible: true,
         notebookLayout: { cols: 1, pageWidth: 280 },
         lastCanvasPageIndex: null,
-        notebookClickTimer: null
+        notebookClickTimer: null,
+        pendingQualityChoice: null
       };
       window.state = state;
 
       // --- Internal Helpers ---
 
-      function saveHistory() { state.history.push(JSON.stringify(state.pages)); if (state.history.length > 50) state.history.shift(); }
+      function updateUndoButton() {
+        const undoBtn = document.getElementById('undoBtn');
+        if (undoBtn) undoBtn.disabled = state.history.length === 0;
+      }
+
+      function saveHistory() {
+        state.history.push(JSON.stringify(state.pages));
+        if (state.history.length > 50) state.history.shift();
+        updateUndoButton();
+      }
 
       function updatePageIndicators() { 
         const cp = document.getElementById('currentPageDisplay');
@@ -351,6 +404,78 @@
           const btnType = btn.id.replace('style-', '');
           const activeType = dash === 'none' ? 'none' : (dash === '5,5' ? 'dashed' : (dash === '0,4' ? 'dotted' : 'dashdot'));
           btn.classList.toggle('bg-white', btnType === activeType);
+        });
+      }
+
+      const PDF_QUALITY_PRESETS = [
+        { id: 'minimal', label: 'Minimal', scale: 1.25, mime: 'image/jpeg', quality: 0.6, compression: 'FAST' },
+        { id: 'small', label: 'Small', scale: 1.5, mime: 'image/jpeg', quality: 0.72, compression: 'MEDIUM' },
+        { id: 'standard', label: 'Standard', scale: 2, mime: 'image/jpeg', quality: 0.82, compression: 'MEDIUM' },
+        { id: 'high', label: 'High', scale: 2.5, mime: 'image/jpeg', quality: 0.9, compression: 'SLOW' }
+      ];
+
+      function estimatePdfSizeLabel(preset) {
+        const pageCount = Math.max(state.pages.length, 1);
+        const config = PAPER_CONFIG[state.paper];
+        const pageWidth = config.unit === 'in' ? config.width * PPI : config.width * PMM;
+        const pageHeight = config.unit === 'in' ? config.height * PPI : config.height * PMM;
+        const megapixels = (pageWidth * preset.scale * pageHeight * preset.scale) / 1000000;
+        const qualityFactor = preset.mime === 'image/png' ? 1.4 : Math.max(0.45, preset.quality);
+        const estimatedMb = Math.max(0.2, pageCount * megapixels * qualityFactor * 0.42);
+        const rounded = estimatedMb < 1 ? estimatedMb.toFixed(1) : Math.round(estimatedMb);
+        return `~${rounded} MB`;
+      }
+
+      function renderQualityOptions(selectedId) {
+        const container = document.getElementById('qualityOptions');
+        if (!container) return;
+        container.innerHTML = '';
+        PDF_QUALITY_PRESETS.forEach((preset) => {
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = `quality-option w-full text-left px-4 py-3 border rounded-xl transition-all hover:border-indigo-300 ${preset.id === selectedId ? 'active' : 'border-slate-200'}`;
+          button.innerHTML = `<div class="flex items-center justify-between gap-3"><span class="text-sm font-bold text-slate-800">${preset.label}</span><span class="text-xs font-medium text-slate-400 uppercase tracking-widest">${estimatePdfSizeLabel(preset)}</span></div>`;
+          button.onclick = () => {
+            state.pendingQualityChoice = preset.id;
+            renderQualityOptions(preset.id);
+          };
+          container.appendChild(button);
+        });
+      }
+
+      function openQualityModal(defaultId = 'standard') {
+        state.pendingQualityChoice = defaultId;
+        renderQualityOptions(defaultId);
+        const modal = document.getElementById('qualityModal');
+        if (modal) modal.classList.remove('hidden');
+      }
+
+      window.closeQualityModal = function() {
+        const modal = document.getElementById('qualityModal');
+        if (modal) modal.classList.add('hidden');
+        if (state.qualityModalReject) {
+          state.qualityModalReject(new Error('cancelled'));
+          state.qualityModalResolve = null;
+          state.qualityModalReject = null;
+        }
+      };
+
+      window.confirmQualityModal = function() {
+        const choice = PDF_QUALITY_PRESETS.find((preset) => preset.id === state.pendingQualityChoice) || PDF_QUALITY_PRESETS[2];
+        const modal = document.getElementById('qualityModal');
+        if (modal) modal.classList.add('hidden');
+        if (state.qualityModalResolve) {
+          state.qualityModalResolve(choice);
+          state.qualityModalResolve = null;
+          state.qualityModalReject = null;
+        }
+      };
+
+      function promptForPdfQuality() {
+        return new Promise((resolve, reject) => {
+          state.qualityModalResolve = resolve;
+          state.qualityModalReject = reject;
+          openQualityModal('standard');
         });
       }
 
@@ -486,6 +611,118 @@
         }
       }
 
+      function getElementBounds(el) {
+        if (el.type === 'line') {
+          return {
+            minX: Math.min(el.x1, el.x2),
+            minY: Math.min(el.y1, el.y2),
+            maxX: Math.max(el.x1, el.x2),
+            maxY: Math.max(el.y1, el.y2)
+          };
+        }
+        if (el.type === 'rect') {
+          return {
+            minX: el.x,
+            minY: el.y,
+            maxX: el.x + el.w,
+            maxY: el.y + el.h
+          };
+        }
+        if (el.type === 'cross') {
+          return {
+            minX: el.x - 6,
+            minY: el.y - 6,
+            maxX: el.x + 6,
+            maxY: el.y + 6
+          };
+        }
+        return {
+          minX: el.x - 6,
+          minY: el.y - 6,
+          maxX: el.x + 6,
+          maxY: el.y + 6
+        };
+      }
+
+      function getMarqueeSelection(rect) {
+        return state.pages[state.currentPageIndex].elements
+          .map((el, idx) => ({ bounds: getElementBounds(el), idx }))
+          .filter(({ bounds }) =>
+            bounds.minX >= rect.minX &&
+            bounds.maxX <= rect.maxX &&
+            bounds.minY >= rect.minY &&
+            bounds.maxY <= rect.maxY
+          )
+          .map(({ idx }) => idx);
+      }
+
+      function getSelectionGroupCenter(page, indices, bleedPx) {
+        if (!indices.length) return null;
+        const bounds = indices
+          .map((idx) => getElementBounds(page.elements[idx]))
+          .reduce((acc, box) => ({
+            minX: Math.min(acc.minX, box.minX),
+            minY: Math.min(acc.minY, box.minY),
+            maxX: Math.max(acc.maxX, box.maxX),
+            maxY: Math.max(acc.maxY, box.maxY)
+          }), { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
+
+        return {
+          x: (bounds.minX + bounds.maxX) / 2 + bleedPx,
+          y: (bounds.minY + bounds.maxY) / 2 + bleedPx
+        };
+      }
+
+      function createFillElements(tool, start, end, style) {
+        const minX = Math.min(start.x, end.x);
+        const minY = Math.min(start.y, end.y);
+        const maxX = Math.max(start.x, end.x);
+        const maxY = Math.max(start.y, end.y);
+        const step = state.gridSize;
+
+        if (tool === 'line') {
+          if (Math.abs(maxX - minX) < 1 || Math.abs(maxY - minY) < 1) {
+            return [{ type: 'line', x1: start.x, y1: start.y, x2: end.x, y2: end.y, style }];
+          }
+
+          const elements = [];
+          for (let y = minY + step; y < maxY; y += step) {
+            elements.push({
+              type: 'line',
+              x1: minX,
+              y1: y,
+              x2: maxX,
+              y2: y,
+              style: { ...style }
+            });
+          }
+          return elements.length ? elements : [{ type: 'line', x1: start.x, y1: start.y, x2: end.x, y2: end.y, style }];
+        }
+
+        if (Math.abs(maxX - minX) < 1 || Math.abs(maxY - minY) < 1) {
+          return [{ type: tool, x: end.x, y: end.y, style }];
+        }
+
+        const elements = [];
+        for (let x = minX + step; x < maxX; x += step) {
+          for (let y = minY + step; y < maxY; y += step) {
+            elements.push({ type: tool, x, y, style: { ...style } });
+          }
+        }
+
+        return elements.length ? elements : [{ type: tool, x: end.x, y: end.y, style }];
+      }
+
+      function isElementLargeEnough(tool, start, end) {
+        const minSize = state.gridSize / 2;
+        const dx = Math.abs(end.x - start.x);
+        const dy = Math.abs(end.y - start.y);
+
+        if (tool === 'line') return Math.hypot(dx, dy) >= minSize;
+        if (tool === 'rect') return dx >= minSize && dy >= minSize;
+        return true;
+      }
+
       function updateNotebookLayout(totalW, totalH) {
         if (state.viewMode !== 'notebook') return;
         const viewport = document.getElementById('viewport');
@@ -590,11 +827,26 @@
         window.renderWorkspace();
       };
 
-      window.updateGlobalOpacity = (v) => { state.globalOpacity = parseInt(v); window.renderWorkspace(); };
-      window.undo = () => { if (state.history.length) { state.pages = JSON.parse(state.history.pop()); window.renderWorkspace(); } };
+      window.undo = () => {
+        if (state.history.length) {
+          state.pages = JSON.parse(state.history.pop());
+          state.currentPageIndex = Math.min(state.currentPageIndex, state.pages.length - 1);
+          state.selectedIndices = [];
+          updatePropsPanel();
+          updateUndoButton();
+          window.renderWorkspace();
+        }
+      };
       window.prevPage = () => { if (state.currentPageIndex > 0) { state.currentPageIndex--; window.renderWorkspace(); } };
       window.nextPage = () => { if (state.currentPageIndex < state.pages.length - 1) { state.currentPageIndex++; window.renderWorkspace(); } };
       window.addPage = () => { saveHistory(); state.pages.push({ elements: [] }); state.currentPageIndex = state.pages.length - 1; window.renderWorkspace(); };
+      window.copyPage = () => {
+        saveHistory();
+        const clonedPage = JSON.parse(JSON.stringify(state.pages[state.currentPageIndex]));
+        state.pages.splice(state.currentPageIndex + 1, 0, clonedPage);
+        state.currentPageIndex += 1;
+        window.renderWorkspace();
+      };
       window.deletePage = () => { if (state.pages.length > 1) { saveHistory(); state.pages.splice(state.currentPageIndex, 1); state.currentPageIndex = Math.max(0, state.currentPageIndex - 1); window.renderWorkspace(); } };
       
       window.setTool = (t) => {
@@ -609,7 +861,13 @@
         window.renderWorkspace();
       };
 
-      window.updateSelectedStyle = (p, v) => { state.selectedIndices.forEach(idx => state.pages[state.currentPageIndex].elements[idx].style[p] = v); updatePropsPanel(); window.renderWorkspace(); };
+      window.updateSelectedStyle = (p, v) => {
+        if (state.selectedIndices.length === 0) return;
+        saveHistory();
+        state.selectedIndices.forEach(idx => state.pages[state.currentPageIndex].elements[idx].style[p] = v);
+        updatePropsPanel();
+        window.renderWorkspace();
+      };
       window.deleteSelected = () => { state.pages[state.currentPageIndex].elements = state.pages[state.currentPageIndex].elements.filter((_, i) => !state.selectedIndices.includes(i)); state.selectedIndices = []; updatePropsPanel(); window.renderWorkspace(); };
       window.clearCanvas = () => { if(confirm("Reset entire page?")) { saveHistory(); state.pages[state.currentPageIndex].elements = []; state.selectedIndices = []; updatePropsPanel(); window.renderWorkspace(); } };
       
@@ -635,6 +893,125 @@
         const fitHeight = (viewport.clientHeight - 8) / totalH;
         const fitWidth = (viewport.clientWidth - 24) / totalW;
         window.updateZoom(Math.min(fitHeight, fitWidth));
+      };
+
+      window.downloadPDF = async function() {
+        const jsPDFCtor = window.jspdf?.jsPDF;
+        if (!jsPDFCtor) {
+          alert('PDF export is unavailable because jsPDF did not load.');
+          return;
+        }
+        try {
+          const exportQuality = await promptForPdfQuality();
+          const now = new Date();
+          const pad2 = (value) => String(value).padStart(2, '0');
+          const stamp = `${pad2(now.getMonth() + 1)}${pad2(now.getDate())}${String(now.getFullYear()).slice(-2)}-${pad2(now.getHours())}${pad2(now.getMinutes())}`;
+          const config = PAPER_CONFIG[state.paper];
+          const pageWidth = config.unit === 'in' ? config.width * PPI : config.width * PMM;
+          const pageHeight = config.unit === 'in' ? config.height * PPI : config.height * PMM;
+          const pdf = new jsPDFCtor({
+            orientation: pageWidth >= pageHeight ? 'landscape' : 'portrait',
+            unit: 'pt',
+            format: [pageWidth, pageHeight],
+            compress: true
+          });
+
+          const svgNs = "http://www.w3.org/2000/svg";
+          const renderPageToDataUrl = async (page) => {
+            const svg = document.createElementNS(svgNs, "svg");
+            svg.setAttribute("xmlns", svgNs);
+            svg.setAttribute("width", pageWidth);
+            svg.setAttribute("height", pageHeight);
+            svg.setAttribute("viewBox", `0 0 ${pageWidth} ${pageHeight}`);
+
+            const bg = document.createElementNS(svgNs, "rect");
+            bg.setAttribute("x", "0");
+            bg.setAttribute("y", "0");
+            bg.setAttribute("width", `${pageWidth}`);
+            bg.setAttribute("height", `${pageHeight}`);
+            bg.setAttribute("fill", "#ffffff");
+            svg.appendChild(bg);
+
+            page.elements.forEach((el) => {
+              const weight = Number(el.style?.weight || 1);
+              const dash = el.style?.dash || 'none';
+              const opacity = Number(el.style?.opacity || 100) / 100;
+              let node;
+
+              if (el.type === 'line') {
+                node = document.createElementNS(svgNs, "line");
+                node.setAttribute("x1", `${el.x1}`);
+                node.setAttribute("y1", `${el.y1}`);
+                node.setAttribute("x2", `${el.x2}`);
+                node.setAttribute("y2", `${el.y2}`);
+                node.setAttribute("fill", "none");
+              } else if (el.type === 'rect') {
+                node = document.createElementNS(svgNs, "rect");
+                node.setAttribute("x", `${el.x}`);
+                node.setAttribute("y", `${el.y}`);
+                node.setAttribute("width", `${el.w}`);
+                node.setAttribute("height", `${el.h}`);
+                node.setAttribute("fill", "none");
+              } else if (el.type === 'dot') {
+                node = document.createElementNS(svgNs, "circle");
+                node.setAttribute("cx", `${el.x}`);
+                node.setAttribute("cy", `${el.y}`);
+                node.setAttribute("r", `${Math.max(0.5, Math.min(5, weight))}`);
+                node.setAttribute("fill", "#334155");
+              } else if (el.type === 'cross') {
+                node = document.createElementNS(svgNs, "path");
+                const size = 4;
+                node.setAttribute("d", `M ${el.x-size} ${el.y} H ${el.x+size} M ${el.x} ${el.y-size} V ${el.y+size}`);
+                node.setAttribute("fill", "none");
+                node.setAttribute("stroke-linecap", "round");
+              }
+
+              if (!node) return;
+              node.setAttribute("opacity", `${opacity}`);
+              node.setAttribute("stroke", "#334155");
+              node.setAttribute("stroke-width", `${weight}`);
+              if (dash !== 'none') node.setAttribute("stroke-dasharray", dash);
+              svg.appendChild(node);
+            });
+
+            const svgString = new XMLSerializer().serializeToString(svg);
+            const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+
+            try {
+              const img = await new Promise((resolve, reject) => {
+                const image = new Image();
+                image.onload = () => resolve(image);
+                image.onerror = reject;
+                image.src = url;
+              });
+
+              const scale = exportQuality.scale;
+              const canvas = document.createElement('canvas');
+              canvas.width = Math.round(pageWidth * scale);
+              canvas.height = Math.round(pageHeight * scale);
+              const ctx = canvas.getContext('2d');
+              ctx.fillStyle = '#ffffff';
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              return canvas.toDataURL(exportQuality.mime, exportQuality.quality);
+            } finally {
+              URL.revokeObjectURL(url);
+            }
+          };
+
+          for (let index = 0; index < state.pages.length; index++) {
+            if (index > 0) pdf.addPage([pageWidth, pageHeight], pageWidth >= pageHeight ? 'landscape' : 'portrait');
+            const pageImage = await renderPageToDataUrl(state.pages[index]);
+            pdf.addImage(pageImage, exportQuality.mime === 'image/png' ? 'PNG' : 'JPEG', 0, 0, pageWidth, pageHeight, undefined, exportQuality.compression);
+          }
+
+          pdf.save(`PDFbaker-${stamp}.pdf`);
+        } catch (error) {
+          if (error?.message === 'cancelled') return;
+          console.error('PDF export failed:', error);
+          alert('PDF export failed. Please refresh and try again.');
+        }
       };
 
       window.getSnappedCoords = function(e) {
@@ -750,6 +1127,7 @@
 
           const stage = document.createElementNS("http://www.w3.org/2000/svg", "svg");
           stage.setAttribute("class", "absolute inset-0 w-full h-full");
+          stage.style.cursor = state.tool === 'select' ? 'default' : 'crosshair';
           stage.id = `stage-${idx}`;
           stage.setAttribute("viewBox", `0 0 ${totalW} ${totalH}`);
           
@@ -796,31 +1174,53 @@
 
           // Element Rendering
           const mOp = state.globalOpacity / 100;
+          const singleSelection = idx === state.currentPageIndex && state.selectedIndices.length === 1 ? state.selectedIndices[0] : null;
           page.elements.forEach((el, i) => {
             const isS = (idx === state.currentPageIndex && state.selectedIndices.includes(i));
             const op = ((el.style?.opacity || 100)/100)*mOp, wt = el.style?.weight || 1;
             let node;
             if (el.type==='line') { node = document.createElementNS("http://www.w3.org/2000/svg", "line"); node.setAttribute("x1", el.x1+bleedPx); node.setAttribute("y1", el.y1+bleedPx); node.setAttribute("x2", el.x2+bleedPx); node.setAttribute("y2", el.y2+bleedPx); node.setAttribute("stroke", "#334155"); node.setAttribute("stroke-width", wt); if(el.style?.dash !== 'none') node.setAttribute("stroke-dasharray", el.style.dash); }
             else if (el.type==='rect') { node = document.createElementNS("http://www.w3.org/2000/svg", "rect"); node.setAttribute("x", el.x+bleedPx); node.setAttribute("y", el.y+bleedPx); node.setAttribute("width", el.w); node.setAttribute("height", el.h); node.setAttribute("fill", "none"); node.setAttribute("stroke", "#334155"); node.setAttribute("stroke-width", wt); if(el.style?.dash !== 'none') node.setAttribute("stroke-dasharray", el.style.dash); }
-            else if (el.type==='dot') { node = document.createElementNS("http://www.w3.org/2000/svg", "circle"); node.setAttribute("cx", el.x+bleedPx); node.setAttribute("cy", el.y+bleedPx); node.setAttribute("r", 1.5); node.setAttribute("fill", "#334155"); }
+            else if (el.type==='dot') { node = document.createElementNS("http://www.w3.org/2000/svg", "circle"); node.setAttribute("cx", el.x+bleedPx); node.setAttribute("cy", el.y+bleedPx); node.setAttribute("r", Math.max(0.5, Math.min(5, wt))); node.setAttribute("fill", "#334155"); }
+            else if (el.type==='cross') {
+              node = document.createElementNS("http://www.w3.org/2000/svg", "path");
+              const cx = el.x + bleedPx, cy = el.y + bleedPx, size = 4;
+              node.setAttribute("d", `M ${cx-size} ${cy} H ${cx+size} M ${cx} ${cy-size} V ${cy+size}`);
+              node.setAttribute("fill", "none");
+              node.setAttribute("stroke", "#334155");
+              node.setAttribute("stroke-width", wt || 1);
+              node.setAttribute("stroke-linecap", "round");
+            }
             if (node) { node.setAttribute("opacity", op); node.classList.add('element-hover'); if (isS) node.classList.add('element-selected'); gElements.appendChild(node); }
             const hit = document.createElementNS("http://www.w3.org/2000/svg", (el.type==='line'?'line':(el.type==='rect'?'rect':'circle')));
             hit.setAttribute("class", "hit-target");
+            if (isS) hit.classList.add('hit-target-selected');
+            if (state.tool !== 'select' && !isS) hit.style.pointerEvents = 'none';
             if (el.type==='line') { hit.setAttribute("x1", el.x1+bleedPx); hit.setAttribute("y1", el.y1+bleedPx); hit.setAttribute("x2", el.x2+bleedPx); hit.setAttribute("y2", el.y2+bleedPx); }
             else if (el.type==='rect') { hit.setAttribute("x", el.x+bleedPx); hit.setAttribute("y", el.y+bleedPx); hit.setAttribute("width", el.w); hit.setAttribute("height", el.h); }
             else { hit.setAttribute("cx", el.x+bleedPx); hit.setAttribute("cy", el.y+bleedPx); hit.setAttribute("r", 10); }
             hit.onmousedown = (e) => {
               e.stopPropagation();
+              if (state.selectedIndices.includes(i) && state.tool === 'select') {
+                saveHistory();
+                state.isDragging = true;
+                state.dragElementIndex = i;
+                state.startPoint = window.getSnappedCoords(e);
+                document.body.classList.add('is-grabbing');
+                return;
+              }
               if (!state.selectedIndices.includes(i)) {
                 if (!e.shiftKey) state.selectedIndices = [i];
                 else state.selectedIndices.push(i);
+              } else if (e.shiftKey) {
+                state.selectedIndices = state.selectedIndices.filter(idx => idx !== i);
               }
               updatePropsPanel();
               window.renderWorkspace();
             };
             gElements.appendChild(hit);
 
-            if (isS && idx === state.currentPageIndex) {
+            if (isS && idx === state.currentPageIndex && singleSelection === i) {
               const handles = getElementHandles(el, bleedPx);
               handles.edges.forEach((pt) => {
                 const edgeHandle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
@@ -830,6 +1230,7 @@
                 edgeHandle.setAttribute("class", "handle-edge");
                 edgeHandle.onmousedown = (e) => {
                   e.stopPropagation();
+                  saveHistory();
                   state.isModifying = true;
                   state.dragElementIndex = i;
                   state.modifyHandleType = { kind: 'edge', index: handles.edges.indexOf(pt) };
@@ -845,27 +1246,66 @@
               centerHandle.setAttribute("class", "handle-center");
               centerHandle.onmousedown = (e) => {
                 e.stopPropagation();
+                saveHistory();
                 state.isDragging = true;
                 state.dragElementIndex = i;
                 state.startPoint = window.getSnappedCoords(e);
+                document.body.classList.add('is-grabbing');
               };
               gElements.appendChild(centerHandle);
             }
           });
 
+          if (idx === state.currentPageIndex && state.selectedIndices.length > 1) {
+            const groupCenter = getSelectionGroupCenter(page, state.selectedIndices, bleedPx);
+            if (groupCenter) {
+              const centerHandle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+              centerHandle.setAttribute("cx", groupCenter.x);
+              centerHandle.setAttribute("cy", groupCenter.y);
+              centerHandle.setAttribute("r", "7");
+              centerHandle.setAttribute("class", "handle-center");
+              centerHandle.onmousedown = (e) => {
+                e.stopPropagation();
+                saveHistory();
+                state.isDragging = true;
+                state.dragElementIndex = null;
+                state.startPoint = window.getSnappedCoords(e);
+                document.body.classList.add('is-grabbing');
+              };
+              gElements.appendChild(centerHandle);
+            }
+          }
+
           if (idx === state.currentPageIndex) {
               stage.onmousedown = (e) => {
                 const c = window.getSnappedCoords(e);
                 if (e.target === stage || e.target.classList.contains('visible-sheet')) {
+                  if (state.tool === 'select') {
+                    state.isSelecting = true;
+                    state.startPoint = c;
+                    const startBleedPx = getVisibleBleedPx();
+                    const marqueeEl = document.getElementById(`marquee-${state.currentPageIndex}`);
+                    if (marqueeEl) {
+                      marqueeEl.classList.remove('hidden');
+                      marqueeEl.setAttribute('x', c.x + startBleedPx);
+                      marqueeEl.setAttribute('y', c.y + startBleedPx);
+                      marqueeEl.setAttribute('width', 0);
+                      marqueeEl.setAttribute('height', 0);
+                    }
+                    if (!e.shiftKey) state.selectedIndices = [];
+                    updatePropsPanel();
+                    return;
+                  }
                   if (state.selectedIndices.length > 0) {
                     state.selectedIndices = [];
                     updatePropsPanel();
                     window.renderWorkspace();
                     return;
                   }
-                  if (state.tool === 'select') return;
                 }
-                state.isDrawing = true; state.startPoint = c;
+                state.isDrawing = true;
+                state.isFilling = (state.tool === 'line' && e.shiftKey) || state.tool === 'dot' || state.tool === 'cross';
+                state.startPoint = c;
               };
           }
         });
@@ -892,11 +1332,37 @@
         window.onmousemove = (e) => {
           const c = window.getSnappedCoords(e);
           const bleedPx = getVisibleBleedPx();
+          if (state.isSelecting) {
+            const marqueeEl = document.getElementById(`marquee-${state.currentPageIndex}`);
+            if (marqueeEl) {
+              marqueeEl.classList.remove('hidden');
+              marqueeEl.setAttribute('x', Math.min(state.startPoint.x, c.x) + bleedPx);
+              marqueeEl.setAttribute('y', Math.min(state.startPoint.y, c.y) + bleedPx);
+              marqueeEl.setAttribute('width', Math.abs(c.x - state.startPoint.x));
+              marqueeEl.setAttribute('height', Math.abs(c.y - state.startPoint.y));
+            }
+            return;
+          }
           if (state.isDrawing) {
             const tl = document.getElementById(`tempLine-${state.currentPageIndex}`);
             const tr = document.getElementById(`tempRect-${state.currentPageIndex}`);
-            if (state.tool === 'line' && tl) { tl.classList.remove('hidden'); tl.setAttribute('x1', state.startPoint.x + bleedPx); tl.setAttribute('y1', state.startPoint.y + bleedPx); tl.setAttribute('x2', c.x + bleedPx); tl.setAttribute('y2', c.y + bleedPx); } 
-            else if (state.tool === 'rect' && tr) { tr.classList.remove('hidden'); tr.setAttribute('x', Math.min(state.startPoint.x, c.x) + bleedPx); tr.setAttribute('y', Math.min(state.startPoint.y, c.y) + bleedPx); tr.setAttribute('width', Math.abs(c.x - state.startPoint.x)); tr.setAttribute('height', Math.abs(c.y - state.startPoint.y)); }
+            if (state.tool === 'line' && tl && tr) {
+              tl.classList.remove('hidden');
+              tl.setAttribute('x1', state.startPoint.x + bleedPx);
+              tl.setAttribute('y1', state.startPoint.y + bleedPx);
+              tl.setAttribute('x2', c.x + bleedPx);
+              tl.setAttribute('y2', c.y + bleedPx);
+              if (state.isFilling) {
+                tr.classList.remove('hidden');
+                tr.setAttribute('x', Math.min(state.startPoint.x, c.x) + bleedPx);
+                tr.setAttribute('y', Math.min(state.startPoint.y, c.y) + bleedPx);
+                tr.setAttribute('width', Math.abs(c.x - state.startPoint.x));
+                tr.setAttribute('height', Math.abs(c.y - state.startPoint.y));
+              } else {
+                tr.classList.add('hidden');
+              }
+            } 
+            else if ((state.tool === 'rect' || state.tool === 'dot' || state.tool === 'cross') && tr) { tr.classList.remove('hidden'); tr.setAttribute('x', Math.min(state.startPoint.x, c.x) + bleedPx); tr.setAttribute('y', Math.min(state.startPoint.y, c.y) + bleedPx); tr.setAttribute('width', Math.abs(c.x - state.startPoint.x)); tr.setAttribute('height', Math.abs(c.y - state.startPoint.y)); }
           }
           if (state.isModifying && state.dragElementIndex !== null) {
             const el = state.pages[state.currentPageIndex].elements[state.dragElementIndex];
@@ -912,18 +1378,43 @@
           }
         };
         window.onmouseup = (e) => {
+          if (state.isSelecting) {
+            state.isSelecting = false;
+            const c = window.getSnappedCoords(e);
+            const marqueeRect = {
+              minX: Math.min(state.startPoint.x, c.x),
+              minY: Math.min(state.startPoint.y, c.y),
+              maxX: Math.max(state.startPoint.x, c.x),
+              maxY: Math.max(state.startPoint.y, c.y)
+            };
+            const marqueeEl = document.getElementById(`marquee-${state.currentPageIndex}`);
+            if (marqueeEl) marqueeEl.classList.add('hidden');
+            const hasArea = Math.abs(c.x - state.startPoint.x) > 2 || Math.abs(c.y - state.startPoint.y) > 2;
+            if (hasArea) state.selectedIndices = getMarqueeSelection(marqueeRect);
+            updatePropsPanel();
+            window.renderWorkspace();
+            return;
+          }
           if (state.isDrawing) {
               state.isDrawing = false;
               const c = window.getSnappedCoords(e), s = { opacity: 100, weight: 1, dash: 'none' };
               let el = state.tool === 'line' ? { type:'line', x1: state.startPoint.x, y1: state.startPoint.y, x2: c.x, y2: c.y, style:s } : { type:'rect', x: Math.min(state.startPoint.x, c.x), y: Math.min(state.startPoint.y, c.y), w: Math.abs(c.x-state.startPoint.x), h: Math.abs(c.y-state.startPoint.y), style:s };
-              if (state.tool === 'dot') el = { type:'dot', x:c.x, y:c.y, style:s };
-              state.pages[state.currentPageIndex].elements.push(el);
+              if ((state.tool === 'dot' || state.tool === 'cross') || isElementLargeEnough(state.tool, state.startPoint, c)) {
+                saveHistory();
+                if (state.tool === 'dot' || state.tool === 'cross' || (state.tool === 'line' && state.isFilling)) {
+                  state.pages[state.currentPageIndex].elements.push(...createFillElements(state.tool, state.startPoint, c, s));
+                } else {
+                  state.pages[state.currentPageIndex].elements.push(el);
+                }
+              }
+              state.isFilling = false;
               window.renderWorkspace();
           }
           state.isModifying = false;
           state.modifyHandleType = null;
           state.isDragging = false;
           state.dragElementIndex = null;
+          document.body.classList.remove('is-grabbing');
         };
         window.onkeydown = (e) => {
           const cmdCtrl = (navigator.platform.toUpperCase().indexOf('MAC') >= 0) ? e.metaKey : e.ctrlKey;
