@@ -227,6 +227,11 @@
             <option value="b5">Semi-B5 (176x250mm)</option>
           </select>
 
+          <button onclick="window.toggleOrientation()" id="orientationToggle" class="flex items-center gap-2 text-xs font-black bg-slate-100 border border-slate-200 rounded-md px-3 py-2 text-slate-700 hover:bg-slate-200 transition-colors uppercase" title="Toggle Portrait / Landscape">
+            <i data-lucide="rotate-cw" class="w-4 h-4 text-indigo-600"></i>
+            <span id="orientationLabel">Portrait</span>
+          </button>
+
           <select id="gridSelect" onchange="window.updateGridSize(this.value)" class="header-select text-xs font-black bg-slate-100 border border-slate-200 rounded-md px-3 py-2 outline-none focus:ring-2 ring-indigo-100 uppercase">
             <optgroup label="Imperial">
               <option value="0.25" selected>1/4"</option>
@@ -414,7 +419,7 @@
         activeKeys: {}, clipboard: [], editingIndex: null,
         startPoint: null, dragElementIndex: null, selectedIndices: [], modifyHandleType: null,
         gridVisible: true, rulerVisible: true, gridOffset: { x: 0, y: 0 },
-        viewMode: 'canvas', bleedUnits: 1,
+        viewMode: 'canvas', bleedUnits: 1, orientation: 'portrait',
         bleedVisible: true,
         notebookLayout: { cols: 1, pageWidth: 280 },
         lastCanvasPageIndex: null,
@@ -422,6 +427,8 @@
         pendingQualityChoice: null
       };
       window.state = state;
+      const textMeasureCanvas = document.createElement('canvas');
+      const textMeasureCtx = textMeasureCanvas.getContext('2d');
 
       // --- Internal Helpers ---
 
@@ -450,6 +457,31 @@
         return false;
       }
 
+      function getPaperMetrics() {
+        const config = PAPER_CONFIG[state.paper];
+        const baseWidth = state.unit === 'in' ? config.width * PPI : config.width * PMM;
+        const baseHeight = state.unit === 'in' ? config.height * PPI : config.height * PMM;
+        return state.orientation === 'landscape'
+          ? { width: baseHeight, height: baseWidth, unit: config.unit }
+          : { width: baseWidth, height: baseHeight, unit: config.unit };
+      }
+
+      function getWorkspaceMetrics() {
+        const { width, height } = getPaperMetrics();
+        const bleedPx = getVisibleBleedPx();
+        const rulerOffset = getCanvasRulerOffset();
+        return {
+          pageWidth: width,
+          pageHeight: height,
+          bleedPx,
+          rulerOffset,
+          totalWidth: width + 2 * bleedPx,
+          totalHeight: height + 2 * bleedPx,
+          framedWidth: width + 2 * bleedPx + rulerOffset + getCanvasFrameExtra(),
+          framedHeight: height + 2 * bleedPx + rulerOffset + getCanvasFrameExtra()
+        };
+      }
+
       function getTextFontSize(el) {
         return Number(el?.style?.fontSize || el?.fontSize || Math.max(12, Math.round(state.gridSize * 0.7)));
       }
@@ -462,10 +494,8 @@
       }
 
       function wrapTextToWidth(text, maxWidth, fontString) {
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return (text || '').split('\n');
-        ctx.font = fontString;
+        if (!textMeasureCtx) return (text || '').split('\n');
+        textMeasureCtx.font = fontString;
         const paragraphs = String(text || '').split('\n');
         const lines = [];
         paragraphs.forEach(paragraph => {
@@ -477,7 +507,7 @@
           let current = '';
           words.forEach(word => {
             const candidate = current ? `${current} ${word}` : word;
-            if (ctx.measureText(candidate).width <= maxWidth || !current) {
+            if (textMeasureCtx.measureText(candidate).width <= maxWidth || !current) {
               current = candidate;
             } else {
               lines.push(current);
@@ -498,6 +528,16 @@
         if(db) db.disabled = state.pages.length <= 1; 
       }
 
+      function updateOrientationButton() {
+        const label = document.getElementById('orientationLabel');
+        if (label) label.innerText = state.orientation === 'landscape' ? 'Landscape' : 'Portrait';
+      }
+
+      function formatPxValue(value) {
+        const numeric = Number(value || 0);
+        return `${numeric % 1 === 0 ? numeric.toFixed(0) : numeric.toFixed(1)}px`;
+      }
+
       function updatePropsPanel() {
         const panel = document.getElementById('selectionToolbar');
         if (!panel) return;
@@ -514,7 +554,7 @@
         const textFormatControls = document.getElementById('textFormatControls');
         const textSizeControl = document.getElementById('textSizeControl');
         document.getElementById('selectionToolbarTitle').innerText = state.selectedIndices.length > 1 ? `Batch (${state.selectedIndices.length})` : `${el.type} Selected`;
-        document.getElementById('weightVal').innerText = `${el.style.weight || 1}px`;
+        document.getElementById('weightVal').innerText = formatPxValue(el.style.weight || 1);
         document.getElementById('weightSlider').value = el.style.weight || 1;
         document.getElementById('opacityVal').innerText = `${el.style.opacity || 100}%`;
         document.getElementById('opacitySlider').value = el.style.opacity || 100;
@@ -526,7 +566,7 @@
         if (textSizeControl) textSizeControl.classList.toggle('hidden', !allText);
         if (allText) {
           const fontSize = el.style.fontSize || el.fontSize || Math.max(12, Math.round(state.gridSize * 0.7));
-          document.getElementById('textSizeVal').innerText = `${fontSize % 1 === 0 ? Number(fontSize).toFixed(0) : Number(fontSize).toFixed(1)}px`;
+          document.getElementById('textSizeVal').innerText = formatPxValue(fontSize);
           document.getElementById('textSizeSlider').value = fontSize;
         }
         document.querySelectorAll('.style-btn').forEach(btn => {
@@ -570,9 +610,7 @@
 
       function estimatePdfSizeLabel(preset) {
         const pageCount = Math.max(state.pages.length, 1);
-        const config = PAPER_CONFIG[state.paper];
-        const pageWidth = config.unit === 'in' ? config.width * PPI : config.width * PMM;
-        const pageHeight = config.unit === 'in' ? config.height * PPI : config.height * PMM;
+        const { width: pageWidth, height: pageHeight } = getPaperMetrics();
         const megapixels = (pageWidth * preset.scale * pageHeight * preset.scale) / 1000000;
         const qualityFactor = preset.mime === 'image/png' ? 1.4 : Math.max(0.45, preset.quality);
         const estimatedMb = Math.max(0.2, pageCount * megapixels * qualityFactor * 0.42);
@@ -937,6 +975,7 @@
       window.init = function() {
         try { lucide.createIcons(); } catch(e) {}
         window.setPaper('letter');
+        updateOrientationButton();
         window.setupEventListeners();
         window.updateGridSize('0.25');
         setTimeout(window.fitAuto, 300);
@@ -944,6 +983,18 @@
 
       window.setPaper = function(type) {
         saveHistory(); state.paper = type; state.unit = PAPER_CONFIG[type].unit;
+        updateOrientationButton();
+        window.renderWorkspace();
+      };
+
+      window.toggleOrientation = function() {
+        state.orientation = state.orientation === 'portrait' ? 'landscape' : 'portrait';
+        updateOrientationButton();
+        const viewport = document.getElementById('viewport');
+        if (viewport) {
+          viewport.scrollTop = 0;
+          viewport.scrollLeft = 0;
+        }
         window.renderWorkspace();
       };
 
@@ -1044,7 +1095,7 @@
           const el = state.pages[state.currentPageIndex].elements[idx];
           if (el.type === 'text') el.style.fontSize = fontSize;
         });
-        document.getElementById('textSizeVal').innerText = `${fontSize % 1 === 0 ? fontSize.toFixed(0) : fontSize.toFixed(1)}px`;
+        document.getElementById('textSizeVal').innerText = formatPxValue(fontSize);
         updatePropsPanel();
         window.renderWorkspace();
       };
@@ -1064,14 +1115,9 @@
           window.renderWorkspace();
           return;
         }
-        const config = PAPER_CONFIG[state.paper];
-        const bleedPx = getVisibleBleedPx();
-        const w = state.unit === 'in' ? config.width * PPI : config.width * PMM;
-        const h = state.unit === 'in' ? config.height * PPI : config.height * PMM;
-        const totalW = w + 2 * bleedPx + getCanvasRulerOffset() + getCanvasFrameExtra();
-        const totalH = h + 2 * bleedPx + getCanvasRulerOffset() + getCanvasFrameExtra();
-        const fitHeight = (viewport.clientHeight - 8) / totalH;
-        const fitWidth = (viewport.clientWidth - 24) / totalW;
+        const metrics = getWorkspaceMetrics();
+        const fitHeight = Math.max(0.1, (viewport.clientHeight - 14) / metrics.framedHeight);
+        const fitWidth = Math.max(0.1, (viewport.clientWidth - 32) / metrics.framedWidth);
         window.updateZoom(Math.min(fitHeight, fitWidth));
       };
 
@@ -1086,9 +1132,7 @@
           const now = new Date();
           const pad2 = (value) => String(value).padStart(2, '0');
           const stamp = `${pad2(now.getMonth() + 1)}${pad2(now.getDate())}${String(now.getFullYear()).slice(-2)}-${pad2(now.getHours())}${pad2(now.getMinutes())}`;
-          const config = PAPER_CONFIG[state.paper];
-          const pageWidth = config.unit === 'in' ? config.width * PPI : config.width * PMM;
-          const pageHeight = config.unit === 'in' ? config.height * PPI : config.height * PMM;
+          const { width: pageWidth, height: pageHeight } = getPaperMetrics();
           const pdf = new jsPDFCtor({
             orientation: pageWidth >= pageHeight ? 'landscape' : 'portrait',
             unit: 'pt',
@@ -1238,11 +1282,8 @@
         const rect = stage.getBoundingClientRect();
         const rawX = (e.clientX - rect.left) / state.zoom;
         const rawY = (e.clientY - rect.top) / state.zoom;
-        const bleedPx = getVisibleBleedPx();
+        const { bleedPx, pageWidth: sheetW, pageHeight: sheetH } = getWorkspaceMetrics();
         const step = state.gridSize / 2;
-        const config = PAPER_CONFIG[state.paper];
-        const sheetW = state.unit === 'in' ? config.width * PPI : config.width * PMM;
-        const sheetH = state.unit === 'in' ? config.height * PPI : config.height * PMM;
         const ox = (sheetW / 2 + bleedPx) % state.gridSize;
         const oy = (sheetH / 2 + bleedPx) % state.gridSize;
         const fx = Math.round((rawX - ox) / step) * step + ox;
@@ -1268,13 +1309,7 @@
         const pageChangeDirection = state.viewMode === 'canvas' && state.lastCanvasPageIndex !== null
           ? (state.currentPageIndex > state.lastCanvasPageIndex ? 'next' : (state.currentPageIndex < state.lastCanvasPageIndex ? 'prev' : null))
           : null;
-        const config = PAPER_CONFIG[state.paper];
-        const w = state.unit === 'in' ? config.width * PPI : config.width * PMM;
-        const h = state.unit === 'in' ? config.height * PPI : config.height * PMM;
-        const bleedPx = getVisibleBleedPx();
-        const rulerOffset = getCanvasRulerOffset();
-        const totalW = w + 2 * bleedPx;
-        const totalH = h + 2 * bleedPx;
+        const { pageWidth: w, pageHeight: h, bleedPx, rulerOffset, totalWidth: totalW, totalHeight: totalH } = getWorkspaceMetrics();
 
         updateNotebookLayout(totalW, totalH);
 
