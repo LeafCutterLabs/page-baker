@@ -35,3 +35,7 @@ window.__PAGE_BAKER_VERSION__ = {
   hash: ${hash_js}
 };
 EOF
+
+if [ -f index.html ]; then
+  sed -i "s#<script src=\"\\./version\\.js\"></script>#<script src=\"./version.js?v=${hash}\"></script>#" index.html
+fi
