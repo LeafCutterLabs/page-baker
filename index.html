@@ -203,7 +203,14 @@
     </div>
   </div>
 
-  <script src="./app.js"></script>
+  <script>
+    (function() {
+      var version = window.__PAGE_BAKER_VERSION__ || {};
+      var appScript = document.createElement('script');
+      appScript.src = './app.js' + (version.hash ? '?v=' + encodeURIComponent(version.hash) : '');
+      document.body.appendChild(appScript);
+    })();
+  </script>
 </body>
 </html>
 
