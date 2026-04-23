@@ -14,7 +14,7 @@
 
       // State
       let state = {
-        paper: 'letter', gridSize: 18, unit: 'in', tool: 'select', 
+        paper: 'letter', gridSize: 18, unit: 'in', gridUnit: 'in', tool: 'select',
         pages: [{ elements: [], orientation: 'portrait' }], currentPageIndex: 0,
         history: [], zoom: 1.0, globalOpacity: 100,
         isDrawing: false, isDragging: false, isModifying: false, isFilling: false, isSelecting: false,
@@ -83,8 +83,8 @@
 
       function getPaperMetrics(orientation = state.orientation) {
         const config = PAPER_CONFIG[state.paper];
-        const baseWidth = state.unit === 'in' ? config.width * PPI : config.width * PMM;
-        const baseHeight = state.unit === 'in' ? config.height * PPI : config.height * PMM;
+        const baseWidth = config.unit === 'in' ? config.width * PPI : config.width * PMM;
+        const baseHeight = config.unit === 'in' ? config.height * PPI : config.height * PMM;
         return orientation === 'landscape'
           ? { width: baseHeight, height: baseWidth, unit: config.unit }
           : { width: baseWidth, height: baseHeight, unit: config.unit };
@@ -388,10 +388,9 @@
 
       function renderRulerContent(svg, size, orientation) {
         svg.innerHTML = '';
-        const unitScale = state.unit === 'in' ? PPI : PMM;
+        const unitScale = isMetricMode() ? PMM : PPI;
         const bleedPx = getVisibleBleedPx();
         const rulerOffset = getCanvasRulerOffset();
-        const isInch = state.unit === 'in';
         const originMode = getGridOriginMode();
         const sheetSize = size - (2 * bleedPx);
         const axisOrigin = originMode === 'center'
@@ -763,7 +762,7 @@
       }
 
       function isMetricMode() {
-        return state.unit === 'mm';
+        return state.gridUnit === 'mm';
       }
 
       function getGridOriginMode() {
@@ -799,7 +798,7 @@
       }
 
       function isDecimalImperialRuler() {
-        return state.unit === 'in' && Math.abs((state.gridSize / PPI) - 0.2) < 0.01;
+        return state.gridUnit === 'in' && Math.abs((state.gridSize / PPI) - 0.2) < 0.01;
       }
 
       function updateCoordinateHud(point) {
@@ -865,13 +864,17 @@
       function syncGridToPaperUnit(nextUnit) {
         const currentValue = nextUnit === 'mm' ? state.gridSize / PMM : state.gridSize / PPI;
         if (nextUnit === 'mm') {
+          state.gridUnit = 'mm';
           if (![4, 5, 6].some((allowed) => Math.abs(currentValue - allowed) < 0.01)) {
             state.gridSize = 5 * PMM;
             setGridSelectValue('5mm');
           }
-        } else if (![0.25, 0.2, 0.28125, 0.34375].some((allowed) => Math.abs(currentValue - allowed) < 0.001)) {
-          state.gridSize = 0.25 * PPI;
-          setGridSelectValue('0.25');
+        } else {
+          state.gridUnit = 'in';
+          if (![0.25, 0.2, 0.28125, 0.34375].some((allowed) => Math.abs(currentValue - allowed) < 0.001)) {
+            state.gridSize = 0.25 * PPI;
+            setGridSelectValue('0.25');
+          }
         }
       }
 
@@ -944,10 +947,14 @@
       window.updateGridSize = function(val) {
         if (val.endsWith('mm')) {
           const metricMm = [4, 5, 6].includes(parseFloat(val)) ? parseFloat(val) : 5;
+          state.gridUnit = 'mm';
           state.gridSize = metricMm * PMM;
         } else {
+          state.gridUnit = 'in';
           state.gridSize = parseFloat(val) * PPI;
         }
+        state.lastSnappedCoords = null;
+        updateCoordinateHud();
         window.renderWorkspace();
       };
 
