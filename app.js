@@ -393,16 +393,22 @@
         const rulerOffset = getCanvasRulerOffset();
         const isInch = state.unit === 'in';
         const originMode = getGridOriginMode();
-        const axisOrigin = orientation === 'horizontal'
-          ? getCanvasPageOrigin(size, size, bleedPx, originMode).x
-          : getCanvasPageOrigin(size, size, bleedPx, originMode).y;
-        const majorStepUnits = state.gridSize / unitScale;
-        const minorStepPx = state.gridSize / 2;
-        const isHybridImperialGrid = isInch && Math.abs((state.gridSize / unitScale) - 0.2) < 0.01;
-        const tickPositions = buildAxisTickPositions(size, axisOrigin, minorStepPx, originMode)
+        const sheetSize = size - (2 * bleedPx);
+        const axisOrigin = originMode === 'center'
+          ? bleedPx + (sheetSize / 2)
+          : bleedPx;
+        const imperialInches = isInch ? (state.gridSize / PPI) : 0;
+        const isDecimalImperial = isInch && Math.abs(imperialInches - 0.2) < 0.01;
+
+        // Normalize the ruler origin once, then let tick cadence vary by preset family.
+        const tickStepPx = isMetricMode()
+          ? state.gridSize / 2
+          : (isDecimalImperial ? state.gridSize : (PPI / 4));
+        const tickPositions = buildAxisTickPositions(size, axisOrigin, tickStepPx, originMode)
           .filter((i) => i >= -0.1 && i <= size + 0.1);
 
         if (isMetricMode()) {
+          const majorStepUnits = state.gridSize / unitScale;
           tickPositions.forEach((i) => {
             const relMm = (i - axisOrigin) / unitScale;
             const absMm = Math.abs(relMm);
@@ -438,19 +444,16 @@
           return;
         }
 
-        tickPositions.forEach((i) => {
-          const rel = (i - axisOrigin) / unitScale;
-          const absRel = Math.abs(rel);
-          const isZero = absRel < 0.01;
-          const isMajor = isZero || Math.abs(absRel - Math.round(absRel)) < 0.01;
-          const isHalf = !isMajor && Math.abs((absRel * 2) - Math.round(absRel * 2)) < 0.01;
-          const isQuarter = !isMajor && !isHalf && Math.abs((absRel * 4) - Math.round(absRel * 4)) < 0.01;
-          const isGrid = !isMajor && !isHalf && Math.abs((absRel * 5) - Math.round(absRel * 5)) < 0.01;
-          const isMini = !isMajor && !isHalf && !isQuarter && !isGrid && Math.abs((absRel * 10) - Math.round(absRel * 10)) < 0.01;
-          const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-          const tickSize = isZero ? 20 : (isMajor ? 20 : (isHalf ? 16 : (isGrid ? 11 : (isQuarter ? 8 : 7))));
+        if (isDecimalImperial) {
+          const labelPositions = buildAxisTickPositions(size, axisOrigin, PPI / 2, originMode)
+            .filter((i) => i >= -0.1 && i <= size + 0.1);
+          tickPositions.forEach((i) => {
+            const rel = (i - axisOrigin) / unitScale;
+            const absRel = Math.abs(rel);
+            const isZero = absRel < 0.01;
+            const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            const tickSize = isZero ? 20 : 7;
 
-          if (isHybridImperialGrid) {
             if (orientation === 'horizontal') {
               line.setAttribute("x1", i); line.setAttribute("x2", i);
               line.setAttribute("y1", rulerOffset - tickSize); line.setAttribute("y2", rulerOffset);
@@ -459,22 +462,38 @@
               line.setAttribute("x1", rulerOffset - tickSize); line.setAttribute("x2", rulerOffset);
             }
 
-            line.setAttribute("class", isZero ? "ruler-center-marker" : (isMini ? "ruler-mini-tick" : "ruler-tick"));
+            line.setAttribute("class", isZero ? "ruler-center-marker" : "ruler-tick");
             svg.appendChild(line);
+          });
 
-            if (isMajor) {
-              const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-              text.setAttribute("class", "ruler-label");
-              text.textContent = Math.round(rel);
-              if (orientation === 'horizontal') {
-                text.setAttribute("x", i + 2); text.setAttribute("y", 10);
-              } else {
-                text.setAttribute("x", 2); text.setAttribute("y", i + 8);
-              }
-              svg.appendChild(text);
+          labelPositions.forEach((i) => {
+            const rel = (i - axisOrigin) / unitScale;
+            const absRel = Math.abs(rel);
+            const isWhole = Math.abs(absRel - Math.round(absRel)) < 0.01;
+            const isHalfLabel = !isWhole && Math.abs((absRel * 2) - Math.round(absRel * 2)) < 0.01;
+            if (!isWhole && !isHalfLabel) return;
+            const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            text.setAttribute("class", "ruler-label");
+            text.textContent = isWhole ? Math.round(rel) : rel.toFixed(1);
+            if (orientation === 'horizontal') {
+              text.setAttribute("x", i + 2); text.setAttribute("y", 10);
+            } else {
+              text.setAttribute("x", 2); text.setAttribute("y", i + 8);
             }
-            return;
-          }
+            svg.appendChild(text);
+          });
+          return;
+        }
+
+        tickPositions.forEach((i) => {
+          const rel = (i - axisOrigin) / unitScale;
+          const absRel = Math.abs(rel);
+          const isZero = absRel < 0.01;
+          const isMajor = isZero || Math.abs(absRel - Math.round(absRel)) < 0.01;
+          const isHalf = !isMajor && Math.abs((absRel * 2) - Math.round(absRel * 2)) < 0.01;
+          const isQuarter = !isMajor && !isHalf && Math.abs((absRel * 4) - Math.round(absRel * 4)) < 0.01;
+          const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          const tickSize = isZero ? 20 : (isMajor ? 20 : (isHalf ? 16 : (isQuarter ? 8 : 7)));
 
           if (orientation === 'horizontal') {
             line.setAttribute("x1", i); line.setAttribute("x2", i);
@@ -484,7 +503,7 @@
             line.setAttribute("x1", rulerOffset - tickSize); line.setAttribute("x2", rulerOffset);
           }
 
-          line.setAttribute("class", isZero ? "ruler-center-marker" : (isMini ? "ruler-mini-tick" : "ruler-tick"));
+          line.setAttribute("class", isZero ? "ruler-center-marker" : (isHalf ? "ruler-mini-tick" : "ruler-tick"));
           svg.appendChild(line);
 
           if (isMajor) {
