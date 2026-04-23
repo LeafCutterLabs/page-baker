@@ -398,6 +398,7 @@
           ? bleedPx + (sheetSize / 2)
           : bleedPx;
         const isDecimalImperial = isDecimalImperialRuler();
+        const metricGridPreset = isMetricGridPreset();
 
         // Normalize the ruler origin once, then let tick cadence vary by preset family.
         const tickStepPx = isMetricMode()
@@ -491,7 +492,7 @@
           line.setAttribute("class", isZero ? "ruler-center-marker" : (isHalf ? "ruler-mini-tick" : "ruler-tick"));
           svg.appendChild(line);
 
-          if (isMajor) {
+          if (!metricGridPreset && isMajor) {
             const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
             text.setAttribute("class", "ruler-label");
             text.textContent = Math.round(rel);
@@ -801,6 +802,10 @@
 
       function isDecimalImperialRuler() {
         return state.unit === 'in' && Math.abs((state.gridSize / PPI) - 0.2) < 0.01;
+      }
+
+      function isMetricGridPreset() {
+        return [4, 5, 6].some((allowedMm) => Math.abs((state.gridSize / PMM) - allowedMm) < 0.01);
       }
 
       function updateCoordinateHud(point) {
