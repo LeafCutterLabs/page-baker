@@ -51,6 +51,7 @@
     .ruler-mini-tick { stroke: #e2e8f0; stroke-width: 1; stroke-linecap: round; }
     .ruler-label { fill: #475569; font-size: 8px; font-weight: 800; }
     .ruler-center-marker { stroke: #C8A46A; stroke-width: 1.5; }
+    .grid-center-guide { stroke: #b78f52; stroke-width: 1.2; stroke-linecap: round; opacity: 0.8; }
     .coord-hud { font-variant-numeric: tabular-nums; letter-spacing: 0; }
 
     #workspace { transform-origin: top left; transition: transform 0.2s ease-out; }

@@ -544,6 +544,21 @@
           l.setAttribute("stroke", Math.abs(y - origin.y) < 0.1 ? "#cbd5e1" : "#f1f5f9");
           elG.appendChild(l);
         });
+
+        // Emphasize the true page center independently of grid spacing.
+        const centerX = bleedPx + (sheetW / 2);
+        const centerY = bleedPx + (sheetH / 2);
+        const centerV = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        centerV.setAttribute("x1", centerX); centerV.setAttribute("y1", 0);
+        centerV.setAttribute("x2", centerX); centerV.setAttribute("y2", h);
+        centerV.setAttribute("class", "grid-center-guide");
+        elG.appendChild(centerV);
+
+        const centerH = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        centerH.setAttribute("x1", 0); centerH.setAttribute("y1", centerY);
+        centerH.setAttribute("x2", w); centerH.setAttribute("y2", centerY);
+        centerH.setAttribute("class", "grid-center-guide");
+        elG.appendChild(centerH);
       }
 
       function getElementHandles(el, bleedPx) {
