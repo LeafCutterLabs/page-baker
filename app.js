@@ -22,6 +22,7 @@
         bleedVisible: true,
         notebookLayout: { cols: 1, pageWidth: 280 },
         lastCanvasPageIndex: null,
+        lastSnappedCoords: null,
         notebookClickTimer: null,
         pendingQualityChoice: null
       };
@@ -409,37 +410,36 @@
             .sort((a, b) => a - b)
             .filter((i) => i >= -0.1 && i <= size + 0.1)
             .forEach((i) => {
-            const relMm = (i - origin) / unitScale;
-            const absMm = Math.abs(relMm);
-            const isZero = Math.abs(relMm) < 0.01;
-            const isMajor = isZero || Math.abs(absMm % (labelStep / unitScale)) < 0.01;
-            const isHalf = !isMajor && Math.abs((absMm * 2) % (labelStep / unitScale)) < 0.01;
-            const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-            const tickSize = isZero ? 20 : (isMajor ? 16 : (isHalf ? 12 : 7));
+              const relMm = (i - origin) / unitScale;
+              const absMm = Math.abs(relMm);
+              const isZero = Math.abs(relMm) < 0.01;
+              const isMajor = isZero || Math.abs(absMm % (labelStep / unitScale)) < 0.01;
+              const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+              const tickSize = isZero ? 20 : (isMajor ? 16 : 8);
 
-            if (orientation === 'horizontal') {
-              line.setAttribute("x1", i); line.setAttribute("x2", i);
-              line.setAttribute("y1", rulerOffset - tickSize); line.setAttribute("y2", rulerOffset);
-            } else {
-              line.setAttribute("y1", i); line.setAttribute("y2", i);
-              line.setAttribute("x1", rulerOffset - tickSize); line.setAttribute("x2", rulerOffset);
-            }
-
-            line.setAttribute("class", isZero ? "ruler-center-marker" : "ruler-tick");
-            svg.appendChild(line);
-
-            if (isMajor) {
-              const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-              text.setAttribute("class", "ruler-label");
-              text.textContent = formatMetricValue(relMm);
               if (orientation === 'horizontal') {
-                text.setAttribute("x", i + 2); text.setAttribute("y", 10);
+                line.setAttribute("x1", i); line.setAttribute("x2", i);
+                line.setAttribute("y1", rulerOffset - tickSize); line.setAttribute("y2", rulerOffset);
               } else {
-                text.setAttribute("x", 2); text.setAttribute("y", i + 8);
+                line.setAttribute("y1", i); line.setAttribute("y2", i);
+                line.setAttribute("x1", rulerOffset - tickSize); line.setAttribute("x2", rulerOffset);
               }
-              svg.appendChild(text);
-            }
-          });
+
+              line.setAttribute("class", isZero ? "ruler-center-marker" : (isMajor ? "ruler-tick" : "ruler-mini-tick"));
+              svg.appendChild(line);
+
+              if (isMajor) {
+                const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                text.setAttribute("class", "ruler-label");
+                text.textContent = formatMetricValue(relMm);
+                if (orientation === 'horizontal') {
+                  text.setAttribute("x", i + 2); text.setAttribute("y", 10);
+                } else {
+                  text.setAttribute("x", 2); text.setAttribute("y", i + 8);
+                }
+                svg.appendChild(text);
+              }
+            });
           return;
         }
         const isHybridImperialGrid = isInch && Math.abs((state.gridSize / unitScale) - 0.2) < 0.01;
@@ -452,12 +452,9 @@
         if (isHybridImperialGrid) {
           const tickPositions = [];
           for (let inch = 0; inch <= size / unitScale + 0.5; inch += 1) {
-            addTick(tickPositions, inch * unitScale);
-            addTick(tickPositions, (inch + 0.5) * unitScale);
-            addTick(tickPositions, (inch + 0.2) * unitScale);
-            addTick(tickPositions, (inch + 0.4) * unitScale);
-            addTick(tickPositions, (inch + 0.6) * unitScale);
-            addTick(tickPositions, (inch + 0.8) * unitScale);
+            [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9].forEach((offset) => {
+              addTick(tickPositions, (inch + offset) * unitScale);
+            });
           }
 
           tickPositions
@@ -467,10 +464,14 @@
               const rel = (i - bleedPx) / unitScale;
               const distanceToWhole = Math.abs(rel - Math.round(rel));
               const distanceToHalf = Math.abs((rel * 2) - Math.round(rel * 2));
+              const distanceToGrid = Math.abs((rel * 5) - Math.round(rel * 5));
+              const distanceToMini = Math.abs((rel * 10) - Math.round(rel * 10));
               const isMajor = distanceToWhole < 0.01;
               const isHalf = !isMajor && distanceToHalf < 0.01;
+              const isGrid = !isMajor && !isHalf && distanceToGrid < 0.01;
+              const isMini = !isMajor && !isHalf && !isGrid && distanceToMini < 0.01;
               const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-              const tickSize = isMajor ? 20 : (isHalf ? 12 : 7);
+              const tickSize = isMajor ? 20 : (isHalf ? 16 : (isGrid ? 11 : 7));
 
               if (orientation === 'horizontal') {
                 line.setAttribute("x1", i); line.setAttribute("x2", i);
@@ -480,7 +481,7 @@
                 line.setAttribute("x1", rulerOffset - tickSize); line.setAttribute("x2", rulerOffset);
               }
 
-              line.setAttribute("class", Math.abs(rel) < 0.001 ? "ruler-center-marker" : "ruler-tick");
+              line.setAttribute("class", Math.abs(rel) < 0.001 ? "ruler-center-marker" : (isMini ? "ruler-mini-tick" : "ruler-tick"));
               svg.appendChild(line);
 
               if (isMajor) {
@@ -505,6 +506,7 @@
           const isMajor = isInch ? (Math.abs(rel % 1) < 0.01) : (Math.abs(rel % 10) < 0.01);
           const isHalf = isInch ? (Math.abs(rel % 0.5) < 0.01) : (Math.abs(rel % 5) < 0.01);
           const isQuarter = isInch ? (Math.abs(rel % 0.25) < 0.01) : false;
+          const isMini = !isMajor && !isHalf && !isQuarter;
 
           const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
           let tickSize = isMajor ? 20 : (isHalf ? 12 : (isQuarter ? 8 : 5));
@@ -517,7 +519,7 @@
             line.setAttribute("x1", rulerOffset - tickSize); line.setAttribute("x2", rulerOffset);
           }
           
-          line.setAttribute("class", Math.abs(rel) < 0.001 ? "ruler-center-marker" : "ruler-tick");
+          line.setAttribute("class", Math.abs(rel) < 0.001 ? "ruler-center-marker" : (isMini ? "ruler-mini-tick" : "ruler-tick"));
           svg.appendChild(line);
 
           if (isMajor) {
@@ -793,6 +795,20 @@
         return Math.abs(value - rounded) < 0.001 ? `${rounded}` : `${Math.round(value * 10) / 10}`;
       }
 
+      function updateCoordinateHud(point) {
+        const hud = document.getElementById('coordDisplay');
+        if (!hud) return;
+        const nextPoint = point && Number.isFinite(point.x) && Number.isFinite(point.y) ? point : { x: 0, y: 0 };
+        if (point && Number.isFinite(point.x) && Number.isFinite(point.y)) {
+          state.lastSnappedCoords = { x: nextPoint.x, y: nextPoint.y };
+        }
+        if (isMetricMode()) {
+          hud.innerText = `X: ${formatMetricValue(nextPoint.x / PMM)} mm Y: ${formatMetricValue(nextPoint.y / PMM)} mm`;
+        } else {
+          hud.innerText = `X: ${(nextPoint.x / PPI).toFixed(2)} in Y: ${(nextPoint.y / PPI).toFixed(2)} in`;
+        }
+      }
+
       function setGridSelectValue(value) {
         const select = document.getElementById('gridSelect');
         if (select) select.value = value;
@@ -852,6 +868,8 @@
       window.setPaper = function(type) {
         saveHistory(); state.paper = type; state.unit = PAPER_CONFIG[type].unit;
         syncGridToPaperUnit(state.unit);
+        state.lastSnappedCoords = null;
+        updateCoordinateHud();
         syncActivePageOrientation();
         window.renderWorkspace();
       };
@@ -869,6 +887,8 @@
           viewport.scrollTop = 0;
           viewport.scrollLeft = 0;
         }
+        state.lastSnappedCoords = null;
+        updateCoordinateHud();
         window.renderWorkspace();
       };
 
@@ -917,25 +937,29 @@
           normalizePages();
           state.currentPageIndex = Math.min(state.currentPageIndex, state.pages.length - 1);
           state.selectedIndices = [];
+          state.lastSnappedCoords = null;
+          updateCoordinateHud();
           updatePropsPanel();
           updateUndoButton();
           syncActivePageOrientation();
           window.renderWorkspace();
         }
       };
-      window.prevPage = () => { if (state.currentPageIndex > 0) { state.currentPageIndex--; syncActivePageOrientation(); window.renderWorkspace(); } };
-      window.nextPage = () => { if (state.currentPageIndex < state.pages.length - 1) { state.currentPageIndex++; syncActivePageOrientation(); window.renderWorkspace(); } };
-      window.addPage = () => { saveHistory(); state.pages.push({ elements: [], orientation: state.orientation }); state.currentPageIndex = state.pages.length - 1; syncActivePageOrientation(); window.renderWorkspace(); };
+      window.prevPage = () => { if (state.currentPageIndex > 0) { state.currentPageIndex--; state.lastSnappedCoords = null; updateCoordinateHud(); syncActivePageOrientation(); window.renderWorkspace(); } };
+      window.nextPage = () => { if (state.currentPageIndex < state.pages.length - 1) { state.currentPageIndex++; state.lastSnappedCoords = null; updateCoordinateHud(); syncActivePageOrientation(); window.renderWorkspace(); } };
+      window.addPage = () => { saveHistory(); state.pages.push({ elements: [], orientation: state.orientation }); state.currentPageIndex = state.pages.length - 1; state.lastSnappedCoords = null; updateCoordinateHud(); syncActivePageOrientation(); window.renderWorkspace(); };
       window.copyPage = () => {
         saveHistory();
         const clonedPage = JSON.parse(JSON.stringify(state.pages[state.currentPageIndex]));
         normalizePage(clonedPage);
         state.pages.splice(state.currentPageIndex + 1, 0, clonedPage);
         state.currentPageIndex += 1;
+        state.lastSnappedCoords = null;
+        updateCoordinateHud();
         syncActivePageOrientation();
         window.renderWorkspace();
       };
-      window.deletePage = () => { if (state.pages.length > 1) { saveHistory(); state.pages.splice(state.currentPageIndex, 1); state.currentPageIndex = Math.max(0, state.currentPageIndex - 1); syncActivePageOrientation(); window.renderWorkspace(); } };
+      window.deletePage = () => { if (state.pages.length > 1) { saveHistory(); state.pages.splice(state.currentPageIndex, 1); state.currentPageIndex = Math.max(0, state.currentPageIndex - 1); state.lastSnappedCoords = null; updateCoordinateHud(); syncActivePageOrientation(); window.renderWorkspace(); } };
       
       window.setTool = (t) => {
         state.tool = t;
@@ -1199,14 +1223,7 @@
           if (state.tool !== 'select' || state.isDrawing || state.isDragging) dot.classList.remove('opacity-0');
           else dot.classList.add('opacity-0');
         }
-        const cd = document.getElementById('coordDisplay');
-        if (cd) {
-          if (isMetricMode()) {
-            cd.innerText = `X: ${formatMetricValue(fx / PMM)} Y: ${formatMetricValue(fy / PMM)}`;
-          } else {
-            cd.innerText = `X: ${((fx - bleedPx - sheetW/2) / PPI).toFixed(2)} Y: ${((fy - bleedPx - sheetH/2) / PPI).toFixed(2)}`;
-          }
-        }
+        updateCoordinateHud(isMetricMode() ? { x: fx, y: fy } : { x: fx - bleedPx, y: fy - bleedPx });
         return isMetricMode() ? { x: fx, y: fy } : { x: fx - bleedPx, y: fy - bleedPx };
       };
 
@@ -1579,6 +1596,7 @@
           }
         });
         updatePageIndicators();
+        updateCoordinateHud(state.lastSnappedCoords);
         requestAnimationFrame(() => {
           if (state.viewMode === 'canvas') {
             window.fitAuto();

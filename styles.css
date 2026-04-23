@@ -48,8 +48,10 @@
     /* Ruler Styles */
     .ruler { background: #fff; color: #475569; font-family: monospace; font-size: 9px; font-weight: bold; pointer-events: none; border-color: #e2e8f0; z-index: 10; user-select: none; -webkit-user-select: none; }
     .ruler-tick { stroke: #cbd5e1; stroke-width: 1; stroke-linecap: round; }
+    .ruler-mini-tick { stroke: #e2e8f0; stroke-width: 1; stroke-linecap: round; }
     .ruler-label { fill: #475569; font-size: 8px; font-weight: 800; }
     .ruler-center-marker { stroke: #0f766e; stroke-width: 1.5; }
+    .coord-hud { font-variant-numeric: tabular-nums; letter-spacing: 0; }
 
     #workspace { transform-origin: top left; transition: transform 0.2s ease-out; }
     
