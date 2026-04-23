@@ -408,12 +408,11 @@
 
         if (isMetricMode()) {
           const metricStepPx = getMetricGridStepPx();
+          // Metric rulers stay unlabeled; the grid and center axes carry the numeric reference.
           tickPositions.forEach((i) => {
             const relMm = (i - axisOrigin) / unitScale;
-            const absMm = Math.abs(relMm);
             const isZero = Math.abs(relMm) < 0.01;
             const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-            const isMajor = isZero || Math.abs((absMm / (metricStepPx / unitScale)) - Math.round(absMm / (metricStepPx / unitScale))) < 0.01;
             const tickSize = isZero ? 20 : 8;
 
             if (orientation === 'horizontal') {
