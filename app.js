@@ -387,11 +387,67 @@
         const unitScale = state.unit === 'in' ? PPI : PMM;
         const bleedPx = getVisibleBleedPx();
         const rulerOffset = getCanvasRulerOffset();
-        const step = state.unit === 'in' ? 0.125 * unitScale : 1 * unitScale; 
+        const isInch = state.unit === 'in';
+        const isHybridImperialGrid = isInch && Math.abs((state.gridSize / unitScale) - 0.2) < 0.01;
+        const roundTick = (value) => Math.round(value * 100) / 100;
+        const addTick = (positions, value) => {
+          const rounded = roundTick(value);
+          if (!positions.some((existing) => Math.abs(existing - rounded) < 0.001)) positions.push(rounded);
+        };
+
+        if (isHybridImperialGrid) {
+          const tickPositions = [];
+          for (let inch = 0; inch <= size / unitScale + 0.5; inch += 1) {
+            addTick(tickPositions, inch * unitScale);
+            addTick(tickPositions, (inch + 0.5) * unitScale);
+            addTick(tickPositions, (inch + 0.2) * unitScale);
+            addTick(tickPositions, (inch + 0.4) * unitScale);
+            addTick(tickPositions, (inch + 0.6) * unitScale);
+            addTick(tickPositions, (inch + 0.8) * unitScale);
+          }
+
+          tickPositions
+            .filter((i) => i <= size + 0.5)
+            .sort((a, b) => a - b)
+            .forEach((i) => {
+              const rel = (i - bleedPx) / unitScale;
+              const distanceToWhole = Math.abs(rel - Math.round(rel));
+              const distanceToHalf = Math.abs((rel * 2) - Math.round(rel * 2));
+              const isMajor = distanceToWhole < 0.01;
+              const isHalf = !isMajor && distanceToHalf < 0.01;
+              const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+              const tickSize = isMajor ? 20 : (isHalf ? 12 : 7);
+
+              if (orientation === 'horizontal') {
+                line.setAttribute("x1", i); line.setAttribute("x2", i);
+                line.setAttribute("y1", rulerOffset - tickSize); line.setAttribute("y2", rulerOffset);
+              } else {
+                line.setAttribute("y1", i); line.setAttribute("y2", i);
+                line.setAttribute("x1", rulerOffset - tickSize); line.setAttribute("x2", rulerOffset);
+              }
+
+              line.setAttribute("class", Math.abs(rel) < 0.001 ? "ruler-center-marker" : "ruler-tick");
+              svg.appendChild(line);
+
+              if (isMajor) {
+                const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                text.setAttribute("class", "ruler-label");
+                text.textContent = Math.round(rel);
+                if (orientation === 'horizontal') {
+                  text.setAttribute("x", i + 2); text.setAttribute("y", 10);
+                } else {
+                  text.setAttribute("x", 2); text.setAttribute("y", i + 8);
+                }
+                svg.appendChild(text);
+              }
+            });
+          return;
+        }
+
+        const step = isInch ? 0.125 * unitScale : 1 * unitScale;
 
         for (let i = 0; i <= size + 0.5; i += step) {
           const rel = (i - bleedPx) / unitScale;
-          const isInch = state.unit === 'in';
           const isMajor = isInch ? (Math.abs(rel % 1) < 0.01) : (Math.abs(rel % 10) < 0.01);
           const isHalf = isInch ? (Math.abs(rel % 0.5) < 0.01) : (Math.abs(rel % 5) < 0.01);
           const isQuarter = isInch ? (Math.abs(rel % 0.25) < 0.01) : false;
