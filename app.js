@@ -445,14 +445,15 @@
         }
 
         if (isDecimalImperial) {
-          const labelPositions = buildAxisTickPositions(size, axisOrigin, PPI / 2, originMode)
+          const labelPositions = buildAxisTickPositions(size, axisOrigin, PPI, originMode)
             .filter((i) => i >= -0.1 && i <= size + 0.1);
           tickPositions.forEach((i) => {
             const rel = (i - axisOrigin) / unitScale;
             const absRel = Math.abs(rel);
             const isZero = absRel < 0.01;
+            const isMajor = isZero || Math.abs(absRel - Math.round(absRel)) < 0.01;
             const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-            const tickSize = isZero ? 20 : 7;
+            const tickSize = isZero ? 20 : (isMajor ? 20 : 7);
 
             if (orientation === 'horizontal') {
               line.setAttribute("x1", i); line.setAttribute("x2", i);
@@ -470,11 +471,10 @@
             const rel = (i - axisOrigin) / unitScale;
             const absRel = Math.abs(rel);
             const isWhole = Math.abs(absRel - Math.round(absRel)) < 0.01;
-            const isHalfLabel = !isWhole && Math.abs((absRel * 2) - Math.round(absRel * 2)) < 0.01;
-            if (!isWhole && !isHalfLabel) return;
+            if (!isWhole) return;
             const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
             text.setAttribute("class", "ruler-label");
-            text.textContent = isWhole ? Math.round(rel) : rel.toFixed(1);
+            text.textContent = Math.round(rel);
             if (orientation === 'horizontal') {
               text.setAttribute("x", i + 2); text.setAttribute("y", 10);
             } else {
