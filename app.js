@@ -401,18 +401,19 @@
 
         // Normalize the ruler origin once, then let tick cadence vary by preset family.
         const tickStepPx = isMetricMode()
-          ? state.gridSize
+          ? getMetricGridStepPx()
           : (isDecimalImperial ? state.gridSize : (PPI / 4));
         const tickPositions = buildAxisTickPositions(size, axisOrigin, tickStepPx, originMode)
           .filter((i) => i >= -0.1 && i <= size + 0.1);
 
         if (isMetricMode()) {
+          const metricStepPx = getMetricGridStepPx();
           tickPositions.forEach((i) => {
             const relMm = (i - axisOrigin) / unitScale;
             const absMm = Math.abs(relMm);
             const isZero = Math.abs(relMm) < 0.01;
             const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-            const isMajor = isZero || Math.abs((absMm / (state.gridSize / unitScale)) - Math.round(absMm / (state.gridSize / unitScale))) < 0.01;
+            const isMajor = isZero || Math.abs((absMm / (metricStepPx / unitScale)) - Math.round(absMm / (metricStepPx / unitScale))) < 0.01;
             const tickSize = isZero ? 20 : 8;
 
             if (orientation === 'horizontal') {
@@ -788,6 +789,10 @@
 
       function getGridStepPx() {
         return isMetricMode() ? state.gridSize / 2 : state.gridSize / 2;
+      }
+
+      function getMetricGridStepPx() {
+        return state.gridSize;
       }
 
       function formatMetricValue(value) {
