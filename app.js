@@ -8,9 +8,9 @@
         b5: { width: 176, height: 250, unit: 'mm' }
       };
       const PPI = 72; const PMM = 2.83465;
-      const ACCENT = '#C8A46A';
-      const ACCENT_SOFT = 'rgba(200, 164, 106, 0.12)';
-      const ACCENT_SOFTER = 'rgba(200, 164, 106, 0.08)';
+      const ACCENT = '#B25D34';
+      const ACCENT_SOFT = 'rgba(178, 93, 52, 0.14)';
+      const ACCENT_SOFTER = 'rgba(178, 93, 52, 0.08)';
 
       // State
       let state = {
@@ -290,21 +290,21 @@
           const activeType = dash === 'none' ? 'none' : (dash === '5,5' ? 'dashed' : (dash === '0,4' ? 'dotted' : 'dashdot'));
           btn.classList.toggle('bg-white', btnType === activeType);
           btn.classList.toggle('ring-1', btnType === activeType);
-          btn.classList.toggle('ring-teal-300', btnType === activeType);
+          btn.classList.toggle('theme-accent-ring', btnType === activeType);
         });
         document.querySelectorAll('.align-btn').forEach(btn => {
           const textAlign = el.style.textAlign || 'left';
           const active = btn.id === `align-${textAlign}`;
           btn.classList.toggle('bg-white', active);
           btn.classList.toggle('ring-1', active);
-          btn.classList.toggle('ring-teal-300', active);
+          btn.classList.toggle('theme-accent-ring', active);
         });
         document.querySelectorAll('.valign-btn').forEach(btn => {
           const verticalAlign = el.style.verticalAlign || 'top';
           const active = btn.id === `valign-${verticalAlign}`;
           btn.classList.toggle('bg-white', active);
           btn.classList.toggle('ring-1', active);
-          btn.classList.toggle('ring-teal-300', active);
+          btn.classList.toggle('theme-accent-ring', active);
         });
         document.querySelectorAll('.text-format-btn').forEach(btn => {
           const active =
@@ -312,7 +312,7 @@
             (btn.id === 'font-italic' && (el.style.fontStyle || 'normal') === 'italic');
           btn.classList.toggle('bg-white', active);
           btn.classList.toggle('ring-1', active);
-          btn.classList.toggle('ring-teal-300', active);
+          btn.classList.toggle('theme-accent-ring', active);
         });
       }
 
@@ -340,7 +340,7 @@
         PDF_QUALITY_PRESETS.forEach((preset) => {
           const button = document.createElement('button');
           button.type = 'button';
-          button.className = `quality-option w-full text-left px-4 py-3 border rounded-xl transition-all hover:border-teal-300 ${preset.id === selectedId ? 'active' : 'border-slate-200'}`;
+          button.className = `quality-option w-full text-left px-4 py-3 border rounded-xl transition-all theme-accent-border-hover ${preset.id === selectedId ? 'active' : 'border-slate-200'}`;
           button.innerHTML = `<div class="flex items-center justify-between gap-3"><span class="text-sm font-bold text-slate-800">${preset.label}</span><span class="text-xs font-medium text-slate-400 uppercase tracking-widest">${estimatePdfSizeLabel(preset)}</span></div>`;
           button.onclick = () => {
             state.pendingQualityChoice = preset.id;
@@ -517,14 +517,14 @@
         xPositions.forEach((x) => {
           const l = document.createElementNS("http://www.w3.org/2000/svg", "line");
           l.setAttribute("x1", x); l.setAttribute("y1", 0); l.setAttribute("x2", x); l.setAttribute("y2", h);
-          l.setAttribute("stroke", Math.abs(x - origin.x) < 0.1 ? "#cbd5e1" : "#f1f5f9");
+          l.setAttribute("stroke", Math.abs(x - origin.x) < 0.1 ? "#D7BFA6" : "#F7EEDD");
           elG.appendChild(l);
         });
 
         yPositions.forEach((y) => {
           const l = document.createElementNS("http://www.w3.org/2000/svg", "line");
           l.setAttribute("x1", 0); l.setAttribute("y1", y); l.setAttribute("x2", w); l.setAttribute("y2", y);
-          l.setAttribute("stroke", Math.abs(y - origin.y) < 0.1 ? "#cbd5e1" : "#f1f5f9");
+          l.setAttribute("stroke", Math.abs(y - origin.y) < 0.1 ? "#D7BFA6" : "#F7EEDD");
           elG.appendChild(l);
         });
 
@@ -961,28 +961,28 @@
       window.toggleGrid = function() {
         state.gridVisible = !state.gridVisible;
         const btn = document.getElementById('gridToggle');
-        if(btn) { btn.classList.toggle('bg-[#C8A46A]', state.gridVisible); btn.classList.toggle('text-white', state.gridVisible); }
+        if(btn) { btn.classList.toggle('theme-accent', state.gridVisible); btn.classList.toggle('text-white', state.gridVisible); }
         window.renderWorkspace();
       };
 
       window.toggleRulers = function() {
         state.rulerVisible = !state.rulerVisible;
         const btn = document.getElementById('rulerToggle');
-        if(btn) { btn.classList.toggle('bg-[#C8A46A]', state.rulerVisible); btn.classList.toggle('text-white', state.rulerVisible); }
+        if(btn) { btn.classList.toggle('theme-accent', state.rulerVisible); btn.classList.toggle('text-white', state.rulerVisible); }
         window.renderWorkspace();
       };
 
       window.toggleBleed = function() {
         state.bleedVisible = !state.bleedVisible;
         const btn = document.getElementById('bleedToggle');
-        if(btn) { btn.classList.toggle('bg-[#C8A46A]', state.bleedVisible); btn.classList.toggle('text-white', state.bleedVisible); }
+        if(btn) { btn.classList.toggle('theme-accent', state.bleedVisible); btn.classList.toggle('text-white', state.bleedVisible); }
         window.renderWorkspace();
       };
 
       window.toggleCenterGuide = function() {
         state.gridCenterVisible = !state.gridCenterVisible;
         const btn = document.getElementById('centerGuideToggle');
-        if (btn) { btn.classList.toggle('bg-[#C8A46A]', state.gridCenterVisible); btn.classList.toggle('text-white', state.gridCenterVisible); }
+        if (btn) { btn.classList.toggle('theme-accent', state.gridCenterVisible); btn.classList.toggle('text-white', state.gridCenterVisible); }
         window.renderWorkspace();
       };
 
@@ -1028,7 +1028,7 @@
         state.tool = t;
         document.querySelectorAll('.tool-btn').forEach(b => {
           const isActive = b.id === `tool-${t}`;
-        b.classList.toggle('bg-[#C8A46A]', isActive); b.classList.toggle('text-white', isActive);
+          b.classList.toggle('theme-accent', isActive); b.classList.toggle('text-white', isActive);
           b.classList.toggle('text-slate-400', !isActive); b.classList.toggle('shadow-md', isActive);
         });
         state.selectedIndices = []; state.editingIndex = null;
@@ -1160,7 +1160,7 @@
                 node.setAttribute("cx", `${p.x}`);
                 node.setAttribute("cy", `${p.y}`);
                 node.setAttribute("r", `${Math.max(0.5, Math.min(5, weight))}`);
-                node.setAttribute("fill", "#334155");
+                node.setAttribute("fill", "#2F241C");
               } else if (el.type === 'cross') {
                 node = document.createElementNS(svgNs, "path");
                 const size = 4;
@@ -1189,7 +1189,7 @@
                 textNode.setAttribute("font-size", `${fontSize}`);
                 textNode.setAttribute("font-weight", el.style?.fontWeight || '400');
                 textNode.setAttribute("font-style", el.style?.fontStyle || 'normal');
-                textNode.setAttribute("fill", "#334155");
+                textNode.setAttribute("fill", "#2F241C");
                 const xPos = textAlign === 'center'
                   ? p.x + (el.w / 2)
                   : textAlign === 'right'
@@ -1210,7 +1210,7 @@
               if (!node) return;
               node.setAttribute("opacity", `${opacity}`);
               if (el.type !== 'text') {
-                node.setAttribute("stroke", "#334155");
+                node.setAttribute("stroke", "#2F241C");
                 node.setAttribute("stroke-width", `${weight}`);
                 if (dash !== 'none') node.setAttribute("stroke-dasharray", dash);
               }
@@ -1426,16 +1426,16 @@
             const isS = (idx === state.currentPageIndex && state.selectedIndices.includes(i));
             const op = ((el.style?.opacity || 100)/100)*mOp, wt = el.style?.weight || 1;
             let node;
-            if (el.type==='line') { const p1 = toCanvas({ x: el.x1, y: el.y1 }); const p2 = toCanvas({ x: el.x2, y: el.y2 }); node = document.createElementNS("http://www.w3.org/2000/svg", "line"); node.setAttribute("x1", p1.x); node.setAttribute("y1", p1.y); node.setAttribute("x2", p2.x); node.setAttribute("y2", p2.y); node.setAttribute("stroke", "#334155"); node.setAttribute("stroke-width", wt); if(el.style?.dash !== 'none') node.setAttribute("stroke-dasharray", el.style.dash); }
-            else if (el.type==='rect') { const p = toCanvas({ x: el.x, y: el.y }); node = document.createElementNS("http://www.w3.org/2000/svg", "rect"); node.setAttribute("x", p.x); node.setAttribute("y", p.y); node.setAttribute("width", el.w); node.setAttribute("height", el.h); node.setAttribute("fill", "none"); node.setAttribute("stroke", "#334155"); node.setAttribute("stroke-width", wt); if(el.style?.dash !== 'none') node.setAttribute("stroke-dasharray", el.style.dash); }
-            else if (el.type==='dot') { const p = toCanvas({ x: el.x, y: el.y }); node = document.createElementNS("http://www.w3.org/2000/svg", "circle"); node.setAttribute("cx", p.x); node.setAttribute("cy", p.y); node.setAttribute("r", Math.max(0.5, Math.min(5, wt))); node.setAttribute("fill", "#334155"); }
+            if (el.type==='line') { const p1 = toCanvas({ x: el.x1, y: el.y1 }); const p2 = toCanvas({ x: el.x2, y: el.y2 }); node = document.createElementNS("http://www.w3.org/2000/svg", "line"); node.setAttribute("x1", p1.x); node.setAttribute("y1", p1.y); node.setAttribute("x2", p2.x); node.setAttribute("y2", p2.y); node.setAttribute("stroke", "#2F241C"); node.setAttribute("stroke-width", wt); if(el.style?.dash !== 'none') node.setAttribute("stroke-dasharray", el.style.dash); }
+            else if (el.type==='rect') { const p = toCanvas({ x: el.x, y: el.y }); node = document.createElementNS("http://www.w3.org/2000/svg", "rect"); node.setAttribute("x", p.x); node.setAttribute("y", p.y); node.setAttribute("width", el.w); node.setAttribute("height", el.h); node.setAttribute("fill", "none"); node.setAttribute("stroke", "#2F241C"); node.setAttribute("stroke-width", wt); if(el.style?.dash !== 'none') node.setAttribute("stroke-dasharray", el.style.dash); }
+            else if (el.type==='dot') { const p = toCanvas({ x: el.x, y: el.y }); node = document.createElementNS("http://www.w3.org/2000/svg", "circle"); node.setAttribute("cx", p.x); node.setAttribute("cy", p.y); node.setAttribute("r", Math.max(0.5, Math.min(5, wt))); node.setAttribute("fill", "#2F241C"); }
             else if (el.type==='cross') {
               node = document.createElementNS("http://www.w3.org/2000/svg", "path");
               const { x: cx, y: cy } = toCanvas({ x: el.x, y: el.y });
               const size = 4;
               node.setAttribute("d", `M ${cx-size} ${cy} H ${cx+size} M ${cx} ${cy-size} V ${cy+size}`);
               node.setAttribute("fill", "none");
-              node.setAttribute("stroke", "#334155");
+              node.setAttribute("stroke", "#2F241C");
               node.setAttribute("stroke-width", wt || 1);
               node.setAttribute("stroke-linecap", "round");
             }
