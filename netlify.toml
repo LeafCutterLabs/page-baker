@@ -1,0 +1,3 @@
+[build]
+command = "sh build-version.sh"
+publish = "."

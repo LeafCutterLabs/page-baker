@@ -53,6 +53,7 @@
     .ruler-center-marker { stroke: #C8A46A; stroke-width: 1.5; }
     .grid-center-guide { stroke: #b78f52; stroke-width: 1.2; stroke-linecap: round; opacity: 0.8; }
     .coord-hud { font-variant-numeric: tabular-nums; letter-spacing: 0; }
+    .version-badge { font-variant-numeric: tabular-nums; letter-spacing: 0; user-select: text; -webkit-user-select: text; cursor: text; }
 
     #workspace { transform-origin: top left; transition: transform 0.2s ease-out; }
     

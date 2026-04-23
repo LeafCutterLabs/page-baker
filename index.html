@@ -7,6 +7,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="./version.js"></script>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body class="bg-slate-50 text-slate-900 h-screen overflow-hidden font-sans">
@@ -71,6 +72,9 @@
       </div>
       
       <div class="flex items-center gap-2">
+        <div id="versionBadge" class="version-badge flex items-center px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-bold text-slate-500 whitespace-nowrap select-text cursor-text shrink-0" title="Loaded build version" aria-label="Loaded build version">
+          <span id="versionBadgeText">unknown</span>
+        </div>
         <div id="coordDisplay" class="coord-hud hidden sm:flex items-center px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-[10px] font-bold text-slate-600 whitespace-nowrap">
           X: 0.00 in Y: 0.00 in
         </div>

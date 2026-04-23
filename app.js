@@ -818,6 +818,24 @@
         }
       }
 
+      function getBuildVersionLabel() {
+        const version = window.__PAGE_BAKER_VERSION__ || {};
+        const hash = typeof version.hash === 'string' ? version.hash.trim() : '';
+        const branch = typeof version.branch === 'string' ? version.branch.trim() : '';
+        if (!hash || hash === 'unknown') return 'unknown';
+        return branch ? `${branch}@${hash}` : hash;
+      }
+
+      function updateVersionBadge() {
+        const badge = document.getElementById('versionBadge');
+        const text = document.getElementById('versionBadgeText');
+        if (!badge || !text) return;
+        const label = getBuildVersionLabel();
+        text.textContent = label;
+        badge.title = `Loaded build version: ${label}`;
+        badge.setAttribute('aria-label', `Loaded build version: ${label}`);
+      }
+
       // Normalize spacing once so grid lines and ruler ticks share the same step math.
       function buildAxisTickPositions(sizePx, originPx, stepPx, originMode = getGridOriginMode()) {
         const ticks = [];
@@ -890,6 +908,7 @@
       window.init = function() {
         try { lucide.createIcons(); } catch(e) {}
         normalizePages();
+        updateVersionBadge();
         window.setPaper('letter');
         syncActivePageOrientation();
         window.setupEventListeners();
