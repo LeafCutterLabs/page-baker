@@ -8,6 +8,9 @@
         b5: { width: 176, height: 250, unit: 'mm' }
       };
       const PPI = 72; const PMM = 2.83465;
+      const ACCENT = '#C8A46A';
+      const ACCENT_SOFT = 'rgba(200, 164, 106, 0.12)';
+      const ACCENT_SOFTER = 'rgba(200, 164, 106, 0.08)';
 
       // State
       let state = {
@@ -905,21 +908,21 @@
       window.toggleGrid = function() {
         state.gridVisible = !state.gridVisible;
         const btn = document.getElementById('gridToggle');
-        if(btn) { btn.classList.toggle('bg-teal-600', state.gridVisible); btn.classList.toggle('text-white', state.gridVisible); }
+        if(btn) { btn.classList.toggle('bg-[#C8A46A]', state.gridVisible); btn.classList.toggle('text-white', state.gridVisible); }
         window.renderWorkspace();
       };
 
       window.toggleRulers = function() {
         state.rulerVisible = !state.rulerVisible;
         const btn = document.getElementById('rulerToggle');
-        if(btn) { btn.classList.toggle('bg-teal-600', state.rulerVisible); btn.classList.toggle('text-white', state.rulerVisible); }
+        if(btn) { btn.classList.toggle('bg-[#C8A46A]', state.rulerVisible); btn.classList.toggle('text-white', state.rulerVisible); }
         window.renderWorkspace();
       };
 
       window.toggleBleed = function() {
         state.bleedVisible = !state.bleedVisible;
         const btn = document.getElementById('bleedToggle');
-        if(btn) { btn.classList.toggle('bg-teal-600', state.bleedVisible); btn.classList.toggle('text-white', state.bleedVisible); }
+        if(btn) { btn.classList.toggle('bg-[#C8A46A]', state.bleedVisible); btn.classList.toggle('text-white', state.bleedVisible); }
         window.renderWorkspace();
       };
 
@@ -965,7 +968,7 @@
         state.tool = t;
         document.querySelectorAll('.tool-btn').forEach(b => {
           const isActive = b.id === `tool-${t}`;
-          b.classList.toggle('bg-teal-600', isActive); b.classList.toggle('text-white', isActive);
+        b.classList.toggle('bg-[#C8A46A]', isActive); b.classList.toggle('text-white', isActive);
           b.classList.toggle('text-slate-400', !isActive); b.classList.toggle('shadow-md', isActive);
         });
         state.selectedIndices = []; state.editingIndex = null;
@@ -1334,20 +1337,20 @@
           // Layer 3: Helpers
           const marquee = document.createElementNS("http://www.w3.org/2000/svg", "rect");
           marquee.id = `marquee-${idx}`; marquee.setAttribute("class", "hidden");
-          marquee.setAttribute("fill", "rgba(15, 118, 110, 0.1)"); marquee.setAttribute("stroke", "#0f766e");
+            marquee.setAttribute("fill", ACCENT_SOFT); marquee.setAttribute("stroke", ACCENT);
           marquee.setAttribute("stroke-width", "1"); marquee.setAttribute("stroke-dasharray", "4");
 
           const snapDot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-          snapDot.id = `snapDot-${idx}`; snapDot.setAttribute("r", "3.5"); snapDot.setAttribute("fill", "#0f766e");
+          snapDot.id = `snapDot-${idx}`; snapDot.setAttribute("r", "3.5"); snapDot.setAttribute("fill", ACCENT);
           snapDot.setAttribute("class", "opacity-0 pointer-events-none transition-opacity duration-75");
 
           const tLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
           tLine.id = `tempLine-${idx}`; tLine.setAttribute("class", "hidden");
-          tLine.setAttribute("stroke", "#0f766e"); tLine.setAttribute("stroke-width", "1.5"); tLine.setAttribute("stroke-dasharray", "4");
+          tLine.setAttribute("stroke", ACCENT); tLine.setAttribute("stroke-width", "1.5"); tLine.setAttribute("stroke-dasharray", "4");
 
           const tRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
           tRect.id = `tempRect-${idx}`; tRect.setAttribute("class", "hidden");
-          tRect.setAttribute("fill", "rgba(15, 118, 110, 0.1)"); tRect.setAttribute("stroke", "#0f766e");
+          tRect.setAttribute("fill", ACCENT_SOFT); tRect.setAttribute("stroke", ACCENT);
           tRect.setAttribute("stroke-width", "1"); tRect.setAttribute("stroke-dasharray", "4");
 
           // Layer 4: Bleed Frame (Top)
@@ -1389,7 +1392,7 @@
               textBoxRect.setAttribute("height", el.h);
               textBoxRect.setAttribute("fill", "#ffffff");
               textBoxRect.setAttribute("fill-opacity", "0.72");
-              textBoxRect.setAttribute("stroke", "#0f766e");
+              textBoxRect.setAttribute("stroke", ACCENT);
               textBoxRect.setAttribute("stroke-opacity", "0.18");
               textBoxRect.setAttribute("stroke-width", "1");
               textBoxRect.setAttribute("stroke-dasharray", "4 3");
