@@ -392,128 +392,90 @@
         const bleedPx = getVisibleBleedPx();
         const rulerOffset = getCanvasRulerOffset();
         const isInch = state.unit === 'in';
-        if (isMetricMode()) {
-          const sheetSize = size - (2 * bleedPx);
-          const origin = bleedPx + (sheetSize / 2);
-          const halfStep = state.gridSize / 2;
-          const labelStep = state.gridSize;
-          const maxDistance = Math.max(origin - bleedPx, (bleedPx + sheetSize) - origin);
-          const tickPositions = [];
-          const addTick = (value) => {
-            const rounded = Math.round(value * 100) / 100;
-            if (!tickPositions.some((existing) => Math.abs(existing - rounded) < 0.001)) tickPositions.push(rounded);
-          };
-
-          for (let offset = 0; offset <= maxDistance + (halfStep / 2); offset += halfStep) {
-            addTick(origin - offset);
-            if (offset > 0) addTick(origin + offset);
-          }
-
-          tickPositions
-            .sort((a, b) => a - b)
-            .filter((i) => i >= -0.1 && i <= size + 0.1)
-            .forEach((i) => {
-              const relMm = (i - origin) / unitScale;
-              const absMm = Math.abs(relMm);
-              const isZero = Math.abs(relMm) < 0.01;
-              const isMajor = isZero || Math.abs(absMm % (labelStep / unitScale)) < 0.01;
-              const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-              const tickSize = isZero ? 20 : (isMajor ? 16 : 8);
-
-              if (orientation === 'horizontal') {
-                line.setAttribute("x1", i); line.setAttribute("x2", i);
-                line.setAttribute("y1", rulerOffset - tickSize); line.setAttribute("y2", rulerOffset);
-              } else {
-                line.setAttribute("y1", i); line.setAttribute("y2", i);
-                line.setAttribute("x1", rulerOffset - tickSize); line.setAttribute("x2", rulerOffset);
-              }
-
-              line.setAttribute("class", isZero ? "ruler-center-marker" : (isMajor ? "ruler-tick" : "ruler-mini-tick"));
-              svg.appendChild(line);
-
-              if (isMajor) {
-                const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-                text.setAttribute("class", "ruler-label");
-                text.textContent = formatMetricValue(relMm);
-                if (orientation === 'horizontal') {
-                  text.setAttribute("x", i + 2); text.setAttribute("y", 10);
-                } else {
-                  text.setAttribute("x", 2); text.setAttribute("y", i + 8);
-                }
-                svg.appendChild(text);
-              }
-            });
-          return;
-        }
+        const originMode = getGridOriginMode();
+        const axisOrigin = orientation === 'horizontal'
+          ? getCanvasPageOrigin(size, size, bleedPx, originMode).x
+          : getCanvasPageOrigin(size, size, bleedPx, originMode).y;
+        const majorStepUnits = state.gridSize / unitScale;
+        const minorStepPx = state.gridSize / 2;
         const isHybridImperialGrid = isInch && Math.abs((state.gridSize / unitScale) - 0.2) < 0.01;
-        const roundTick = (value) => Math.round(value * 100) / 100;
-        const addTick = (positions, value) => {
-          const rounded = roundTick(value);
-          if (!positions.some((existing) => Math.abs(existing - rounded) < 0.001)) positions.push(rounded);
-        };
+        const tickPositions = buildAxisTickPositions(size, axisOrigin, minorStepPx, originMode)
+          .filter((i) => i >= -0.1 && i <= size + 0.1);
 
-        if (isHybridImperialGrid) {
-          const tickPositions = [];
-          for (let inch = 0; inch <= size / unitScale + 0.5; inch += 1) {
-            [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9].forEach((offset) => {
-              addTick(tickPositions, (inch + offset) * unitScale);
-            });
-          }
+        if (isMetricMode()) {
+          tickPositions.forEach((i) => {
+            const relMm = (i - axisOrigin) / unitScale;
+            const absMm = Math.abs(relMm);
+            const isZero = Math.abs(relMm) < 0.01;
+            const isMajor = isZero || Math.abs((absMm / majorStepUnits) - Math.round(absMm / majorStepUnits)) < 0.01;
+            const isHalf = !isMajor && Math.abs((absMm / (majorStepUnits / 2)) - Math.round(absMm / (majorStepUnits / 2))) < 0.01;
+            const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            const tickSize = isZero ? 20 : (isMajor ? 16 : 8);
 
-          tickPositions
-            .filter((i) => i <= size + 0.5)
-            .sort((a, b) => a - b)
-            .forEach((i) => {
-              const rel = (i - bleedPx) / unitScale;
-              const distanceToWhole = Math.abs(rel - Math.round(rel));
-              const distanceToHalf = Math.abs((rel * 2) - Math.round(rel * 2));
-              const distanceToGrid = Math.abs((rel * 5) - Math.round(rel * 5));
-              const distanceToMini = Math.abs((rel * 10) - Math.round(rel * 10));
-              const isMajor = distanceToWhole < 0.01;
-              const isHalf = !isMajor && distanceToHalf < 0.01;
-              const isGrid = !isMajor && !isHalf && distanceToGrid < 0.01;
-              const isMini = !isMajor && !isHalf && !isGrid && distanceToMini < 0.01;
-              const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-              const tickSize = isMajor ? 20 : (isHalf ? 16 : (isGrid ? 11 : 7));
+            if (orientation === 'horizontal') {
+              line.setAttribute("x1", i); line.setAttribute("x2", i);
+              line.setAttribute("y1", rulerOffset - tickSize); line.setAttribute("y2", rulerOffset);
+            } else {
+              line.setAttribute("y1", i); line.setAttribute("y2", i);
+              line.setAttribute("x1", rulerOffset - tickSize); line.setAttribute("x2", rulerOffset);
+            }
 
+            line.setAttribute("class", isZero ? "ruler-center-marker" : (isHalf ? "ruler-mini-tick" : "ruler-tick"));
+            svg.appendChild(line);
+
+            if (isMajor) {
+              const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+              text.setAttribute("class", "ruler-label");
+              text.textContent = formatMetricValue(relMm);
               if (orientation === 'horizontal') {
-                line.setAttribute("x1", i); line.setAttribute("x2", i);
-                line.setAttribute("y1", rulerOffset - tickSize); line.setAttribute("y2", rulerOffset);
+                text.setAttribute("x", i + 2); text.setAttribute("y", 10);
               } else {
-                line.setAttribute("y1", i); line.setAttribute("y2", i);
-                line.setAttribute("x1", rulerOffset - tickSize); line.setAttribute("x2", rulerOffset);
+                text.setAttribute("x", 2); text.setAttribute("y", i + 8);
               }
-
-              line.setAttribute("class", Math.abs(rel) < 0.001 ? "ruler-center-marker" : (isMini ? "ruler-mini-tick" : "ruler-tick"));
-              svg.appendChild(line);
-
-              if (isMajor) {
-                const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-                text.setAttribute("class", "ruler-label");
-                text.textContent = Math.round(rel);
-                if (orientation === 'horizontal') {
-                  text.setAttribute("x", i + 2); text.setAttribute("y", 10);
-                } else {
-                  text.setAttribute("x", 2); text.setAttribute("y", i + 8);
-                }
-                svg.appendChild(text);
-              }
-            });
+              svg.appendChild(text);
+            }
+          });
           return;
         }
 
-        const step = isInch ? 0.125 * unitScale : 1 * unitScale;
-
-        for (let i = 0; i <= size + 0.5; i += step) {
-          const rel = (i - bleedPx) / unitScale;
-          const isMajor = isInch ? (Math.abs(rel % 1) < 0.01) : (Math.abs(rel % 10) < 0.01);
-          const isHalf = isInch ? (Math.abs(rel % 0.5) < 0.01) : (Math.abs(rel % 5) < 0.01);
-          const isQuarter = isInch ? (Math.abs(rel % 0.25) < 0.01) : false;
-          const isMini = !isMajor && !isHalf && !isQuarter;
-
+        tickPositions.forEach((i) => {
+          const rel = (i - axisOrigin) / unitScale;
+          const absRel = Math.abs(rel);
+          const isZero = absRel < 0.01;
+          const isMajor = isZero || Math.abs(absRel - Math.round(absRel)) < 0.01;
+          const isHalf = !isMajor && Math.abs((absRel * 2) - Math.round(absRel * 2)) < 0.01;
+          const isQuarter = !isMajor && !isHalf && Math.abs((absRel * 4) - Math.round(absRel * 4)) < 0.01;
+          const isGrid = !isMajor && !isHalf && Math.abs((absRel * 5) - Math.round(absRel * 5)) < 0.01;
+          const isMini = !isMajor && !isHalf && !isQuarter && !isGrid && Math.abs((absRel * 10) - Math.round(absRel * 10)) < 0.01;
           const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-          let tickSize = isMajor ? 20 : (isHalf ? 12 : (isQuarter ? 8 : 5));
-          
+          const tickSize = isZero ? 20 : (isMajor ? 20 : (isHalf ? 16 : (isGrid ? 11 : (isQuarter ? 8 : 7))));
+
+          if (isHybridImperialGrid) {
+            if (orientation === 'horizontal') {
+              line.setAttribute("x1", i); line.setAttribute("x2", i);
+              line.setAttribute("y1", rulerOffset - tickSize); line.setAttribute("y2", rulerOffset);
+            } else {
+              line.setAttribute("y1", i); line.setAttribute("y2", i);
+              line.setAttribute("x1", rulerOffset - tickSize); line.setAttribute("x2", rulerOffset);
+            }
+
+            line.setAttribute("class", isZero ? "ruler-center-marker" : (isMini ? "ruler-mini-tick" : "ruler-tick"));
+            svg.appendChild(line);
+
+            if (isMajor) {
+              const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+              text.setAttribute("class", "ruler-label");
+              text.textContent = Math.round(rel);
+              if (orientation === 'horizontal') {
+                text.setAttribute("x", i + 2); text.setAttribute("y", 10);
+              } else {
+                text.setAttribute("x", 2); text.setAttribute("y", i + 8);
+              }
+              svg.appendChild(text);
+            }
+            return;
+          }
+
           if (orientation === 'horizontal') {
             line.setAttribute("x1", i); line.setAttribute("x2", i);
             line.setAttribute("y1", rulerOffset - tickSize); line.setAttribute("y2", rulerOffset);
@@ -521,8 +483,8 @@
             line.setAttribute("y1", i); line.setAttribute("y2", i);
             line.setAttribute("x1", rulerOffset - tickSize); line.setAttribute("x2", rulerOffset);
           }
-          
-          line.setAttribute("class", Math.abs(rel) < 0.001 ? "ruler-center-marker" : (isMini ? "ruler-mini-tick" : "ruler-tick"));
+
+          line.setAttribute("class", isZero ? "ruler-center-marker" : (isMini ? "ruler-mini-tick" : "ruler-tick"));
           svg.appendChild(line);
 
           if (isMajor) {
@@ -536,7 +498,7 @@
             }
             svg.appendChild(text);
           }
-        }
+        });
       }
 
       function renderGridLines(elG, w, h) {
@@ -544,19 +506,25 @@
         const bleedPx = state.bleedVisible ? state.bleedUnits * state.gridSize : 0;
         const sheetW = w - 2 * bleedPx;
         const sheetH = h - 2 * bleedPx;
-        state.gridOffset = { x: (sheetW / 2 + bleedPx) % step, y: (sheetH / 2 + bleedPx) % step };
-        for (let x = state.gridOffset.x; x <= w + 0.1; x += step) {
+        const originMode = getGridOriginMode();
+        const origin = getCanvasPageOrigin(sheetW, sheetH, bleedPx, originMode);
+        const xPositions = buildAxisTickPositions(w, origin.x, step, originMode);
+        const yPositions = buildAxisTickPositions(h, origin.y, step, originMode);
+        state.gridOffset = { x: origin.x % step, y: origin.y % step };
+
+        xPositions.forEach((x) => {
           const l = document.createElementNS("http://www.w3.org/2000/svg", "line");
           l.setAttribute("x1", x); l.setAttribute("y1", 0); l.setAttribute("x2", x); l.setAttribute("y2", h);
-          l.setAttribute("stroke", Math.abs(x - (sheetW / 2 + bleedPx)) < 0.1 ? "#cbd5e1" : "#f1f5f9");
+          l.setAttribute("stroke", Math.abs(x - origin.x) < 0.1 ? "#cbd5e1" : "#f1f5f9");
           elG.appendChild(l);
-        }
-        for (let y = state.gridOffset.y; y <= h + 0.1; y += step) {
+        });
+
+        yPositions.forEach((y) => {
           const l = document.createElementNS("http://www.w3.org/2000/svg", "line");
           l.setAttribute("x1", 0); l.setAttribute("y1", y); l.setAttribute("x2", w); l.setAttribute("y2", y);
-          l.setAttribute("stroke", Math.abs(y - (sheetH / 2 + bleedPx)) < 0.1 ? "#cbd5e1" : "#f1f5f9");
+          l.setAttribute("stroke", Math.abs(y - origin.y) < 0.1 ? "#cbd5e1" : "#f1f5f9");
           elG.appendChild(l);
-        }
+        });
       }
 
       function getElementHandles(el, bleedPx) {
@@ -778,8 +746,13 @@
         return state.unit === 'mm';
       }
 
-      function getCanvasPageOrigin(pageWidth, pageHeight, bleedPx) {
-        return isMetricMode()
+      function getGridOriginMode() {
+        return isMetricMode() ? 'center' : 'top-left';
+      }
+
+      // Normalize the page reference once so ruler, grid, and snapping all share the same origin.
+      function getCanvasPageOrigin(pageWidth, pageHeight, bleedPx, originMode = getGridOriginMode()) {
+        return originMode === 'center'
           ? { x: bleedPx + (pageWidth / 2), y: bleedPx + (pageHeight / 2) }
           : { x: bleedPx, y: bleedPx };
       }
@@ -810,6 +783,29 @@
         } else {
           hud.innerText = `X: ${(nextPoint.x / PPI).toFixed(2)} in Y: ${(nextPoint.y / PPI).toFixed(2)} in`;
         }
+      }
+
+      // Normalize spacing once so grid lines and ruler ticks share the same step math.
+      function buildAxisTickPositions(sizePx, originPx, stepPx, originMode = getGridOriginMode()) {
+        const ticks = [];
+        const addTick = (value) => {
+          const rounded = Math.round(value * 100) / 100;
+          if (!ticks.some((existing) => Math.abs(existing - rounded) < 0.001)) ticks.push(rounded);
+        };
+
+        if (originMode === 'center') {
+          const maxDistance = Math.max(originPx, sizePx - originPx);
+          for (let offset = 0; offset <= maxDistance + (stepPx / 2); offset += stepPx) {
+            addTick(originPx - offset);
+            if (offset > 0) addTick(originPx + offset);
+          }
+        } else {
+          for (let pos = originPx; pos <= sizePx + (stepPx / 2); pos += stepPx) {
+            addTick(pos);
+          }
+        }
+
+        return ticks.sort((a, b) => a - b);
       }
 
       function setGridSelectValue(value) {
@@ -1208,26 +1204,21 @@
         const rawY = (e.clientY - rect.top) / state.zoom;
         const { bleedPx, pageWidth: sheetW, pageHeight: sheetH } = getWorkspaceMetrics();
         const step = state.gridSize / 2;
-        const originX = isMetricMode() ? (bleedPx + (sheetW / 2)) : bleedPx;
-        const originY = isMetricMode() ? (bleedPx + (sheetH / 2)) : bleedPx;
-        const ox = isMetricMode() ? originX : ((sheetW / 2 + bleedPx) % state.gridSize);
-        const oy = isMetricMode() ? originY : ((sheetH / 2 + bleedPx) % state.gridSize);
-        const fx = isMetricMode()
-          ? Math.round((rawX - originX) / step) * step
-          : Math.round((rawX - ox) / step) * step + ox;
-        const fy = isMetricMode()
-          ? Math.round((rawY - originY) / step) * step
-          : Math.round((rawY - oy) / step) * step + oy;
+        const originMode = getGridOriginMode();
+        const origin = getCanvasPageOrigin(sheetW, sheetH, bleedPx, originMode);
+        const fx = Math.round((rawX - origin.x) / step) * step;
+        const fy = Math.round((rawY - origin.y) / step) * step;
 
         const dot = document.getElementById(`snapDot-${state.currentPageIndex}`);
         if (dot) {
-          const dotPoint = isMetricMode() ? toCanvasPoint({ x: fx, y: fy }, sheetW, sheetH, bleedPx) : { x: fx, y: fy };
+          const dotPoint = isMetricMode() ? toCanvasPoint({ x: fx, y: fy }, sheetW, sheetH, bleedPx) : { x: fx + origin.x, y: fy + origin.y };
           dot.setAttribute('cx', dotPoint.x); dot.setAttribute('cy', dotPoint.y);
           if (state.tool !== 'select' || state.isDrawing || state.isDragging) dot.classList.remove('opacity-0');
           else dot.classList.add('opacity-0');
         }
-        updateCoordinateHud(isMetricMode() ? { x: fx, y: fy } : { x: fx - bleedPx, y: fy - bleedPx });
-        return isMetricMode() ? { x: fx, y: fy } : { x: fx - bleedPx, y: fy - bleedPx };
+        const snapped = { x: fx, y: fy };
+        updateCoordinateHud(snapped);
+        return snapped;
       };
 
       window.renderWorkspace = function() {
