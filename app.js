@@ -12,7 +12,7 @@
       // State
       let state = {
         paper: 'letter', gridSize: 18, unit: 'in', tool: 'select', 
-        pages: [{ elements: [] }], currentPageIndex: 0,
+        pages: [{ elements: [], orientation: 'portrait' }], currentPageIndex: 0,
         history: [], zoom: 1.0, globalOpacity: 100,
         isDrawing: false, isDragging: false, isModifying: false, isFilling: false, isSelecting: false,
         activeKeys: {}, clipboard: [], editingIndex: null,
@@ -42,6 +42,27 @@
         updateUndoButton();
       }
 
+      function normalizePage(page) {
+        if (!page || typeof page !== 'object') return { elements: [], orientation: 'portrait' };
+        if (!Array.isArray(page.elements)) page.elements = [];
+        if (page.orientation !== 'portrait' && page.orientation !== 'landscape') page.orientation = 'portrait';
+        return page;
+      }
+
+      function normalizePages() {
+        state.pages = state.pages.map((page) => normalizePage(page));
+      }
+
+      function getActivePage() {
+        normalizePages();
+        const page = state.pages[state.currentPageIndex] || state.pages[0];
+        return normalizePage(page);
+      }
+
+      function getPageOrientation(page = getActivePage()) {
+        return normalizePage(page).orientation;
+      }
+
       function expandTextBoxToFit(element, contentNode) {
         if (!element || element.type !== 'text' || !contentNode) return false;
         const computed = window.getComputedStyle(contentNode);
@@ -56,17 +77,18 @@
         return false;
       }
 
-      function getPaperMetrics() {
+      function getPaperMetrics(orientation = state.orientation) {
         const config = PAPER_CONFIG[state.paper];
         const baseWidth = state.unit === 'in' ? config.width * PPI : config.width * PMM;
         const baseHeight = state.unit === 'in' ? config.height * PPI : config.height * PMM;
-        return state.orientation === 'landscape'
+        return orientation === 'landscape'
           ? { width: baseHeight, height: baseWidth, unit: config.unit }
           : { width: baseWidth, height: baseHeight, unit: config.unit };
       }
 
-      function getWorkspaceMetrics() {
-        const { width, height } = getPaperMetrics();
+      function getWorkspaceMetrics(page = getActivePage()) {
+        const orientation = getPageOrientation(page);
+        const { width, height } = getPaperMetrics(orientation);
         const bleedPx = getVisibleBleedPx();
         const rulerOffset = getCanvasRulerOffset();
         return {
@@ -79,6 +101,96 @@
           framedWidth: width + 2 * bleedPx + rulerOffset + getCanvasFrameExtra(),
           framedHeight: height + 2 * bleedPx + rulerOffset + getCanvasFrameExtra()
         };
+      }
+
+      function getWorkspaceMetricsForPaper(orientation) {
+        const { width, height } = getPaperMetrics(orientation);
+        const bleedPx = getVisibleBleedPx();
+        const rulerOffset = getCanvasRulerOffset();
+        return {
+          pageWidth: width,
+          pageHeight: height,
+          bleedPx,
+          rulerOffset,
+          totalWidth: width + 2 * bleedPx,
+          totalHeight: height + 2 * bleedPx,
+          framedWidth: width + 2 * bleedPx + rulerOffset + getCanvasFrameExtra(),
+          framedHeight: height + 2 * bleedPx + rulerOffset + getCanvasFrameExtra()
+        };
+      }
+
+      function rotatePointForOrientation(point, sourceMetrics, direction) {
+        if (direction === 'cw') {
+          return { x: sourceMetrics.height - point.y, y: point.x };
+        }
+        return { x: point.y, y: sourceMetrics.width - point.x };
+      }
+
+      function roundCoord(value) {
+        return Math.round(Number(value) * 1000) / 1000;
+      }
+
+      function rotateElementForOrientation(el, fromOrientation, toOrientation) {
+        if (!el || fromOrientation === toOrientation) return el;
+        const sourceMetrics = getPaperMetrics(fromOrientation);
+        const direction = fromOrientation === 'portrait' && toOrientation === 'landscape' ? 'cw' : 'ccw';
+
+        const rotatePoint = (x, y) => rotatePointForOrientation({ x, y }, sourceMetrics, direction);
+        const applyBox = (x, y, w, h) => {
+          const corners = [
+            rotatePoint(x, y),
+            rotatePoint(x + w, y),
+            rotatePoint(x + w, y + h),
+            rotatePoint(x, y + h)
+          ];
+          const xs = corners.map((pt) => pt.x);
+          const ys = corners.map((pt) => pt.y);
+          return {
+            x: roundCoord(Math.min(...xs)),
+            y: roundCoord(Math.min(...ys)),
+            w: roundCoord(Math.max(...xs) - Math.min(...xs)),
+            h: roundCoord(Math.max(...ys) - Math.min(...ys))
+          };
+        };
+
+        if (el.type === 'line') {
+          const start = rotatePoint(el.x1, el.y1);
+          const end = rotatePoint(el.x2, el.y2);
+          el.x1 = roundCoord(start.x);
+          el.y1 = roundCoord(start.y);
+          el.x2 = roundCoord(end.x);
+          el.y2 = roundCoord(end.y);
+          return el;
+        }
+
+        if (el.type === 'rect' || el.type === 'text') {
+          const box = applyBox(el.x, el.y, el.w, el.h);
+          el.x = box.x;
+          el.y = box.y;
+          el.w = box.w;
+          el.h = box.h;
+          return el;
+        }
+
+        if (el.type === 'dot' || el.type === 'cross') {
+          const pt = rotatePoint(el.x, el.y);
+          el.x = roundCoord(pt.x);
+          el.y = roundCoord(pt.y);
+        }
+        return el;
+      }
+
+      function rotatePageElements(page, fromOrientation, toOrientation) {
+        if (!page || fromOrientation === toOrientation) return page;
+        page.elements = page.elements.map((el) => rotateElementForOrientation(JSON.parse(JSON.stringify(el)), fromOrientation, toOrientation));
+        page.orientation = toOrientation;
+        return page;
+      }
+
+      function syncActivePageOrientation() {
+        const page = getActivePage();
+        state.orientation = getPageOrientation(page);
+        updateOrientationButton();
       }
 
       function getTextFontSize(el) {
@@ -174,21 +286,21 @@
           const activeType = dash === 'none' ? 'none' : (dash === '5,5' ? 'dashed' : (dash === '0,4' ? 'dotted' : 'dashdot'));
           btn.classList.toggle('bg-white', btnType === activeType);
           btn.classList.toggle('ring-1', btnType === activeType);
-          btn.classList.toggle('ring-indigo-300', btnType === activeType);
+          btn.classList.toggle('ring-teal-300', btnType === activeType);
         });
         document.querySelectorAll('.align-btn').forEach(btn => {
           const textAlign = el.style.textAlign || 'left';
           const active = btn.id === `align-${textAlign}`;
           btn.classList.toggle('bg-white', active);
           btn.classList.toggle('ring-1', active);
-          btn.classList.toggle('ring-indigo-300', active);
+          btn.classList.toggle('ring-teal-300', active);
         });
         document.querySelectorAll('.valign-btn').forEach(btn => {
           const verticalAlign = el.style.verticalAlign || 'top';
           const active = btn.id === `valign-${verticalAlign}`;
           btn.classList.toggle('bg-white', active);
           btn.classList.toggle('ring-1', active);
-          btn.classList.toggle('ring-indigo-300', active);
+          btn.classList.toggle('ring-teal-300', active);
         });
         document.querySelectorAll('.text-format-btn').forEach(btn => {
           const active =
@@ -196,7 +308,7 @@
             (btn.id === 'font-italic' && (el.style.fontStyle || 'normal') === 'italic');
           btn.classList.toggle('bg-white', active);
           btn.classList.toggle('ring-1', active);
-          btn.classList.toggle('ring-indigo-300', active);
+          btn.classList.toggle('ring-teal-300', active);
         });
       }
 
@@ -224,7 +336,7 @@
         PDF_QUALITY_PRESETS.forEach((preset) => {
           const button = document.createElement('button');
           button.type = 'button';
-          button.className = `quality-option w-full text-left px-4 py-3 border rounded-xl transition-all hover:border-indigo-300 ${preset.id === selectedId ? 'active' : 'border-slate-200'}`;
+          button.className = `quality-option w-full text-left px-4 py-3 border rounded-xl transition-all hover:border-teal-300 ${preset.id === selectedId ? 'active' : 'border-slate-200'}`;
           button.innerHTML = `<div class="flex items-center justify-between gap-3"><span class="text-sm font-bold text-slate-800">${preset.label}</span><span class="text-xs font-medium text-slate-400 uppercase tracking-widest">${estimatePdfSizeLabel(preset)}</span></div>`;
           button.onclick = () => {
             state.pendingQualityChoice = preset.id;
@@ -526,7 +638,11 @@
         const paddingY = 64;
         const availableWidth = Math.max(viewport.clientWidth - paddingX, 240);
         const availableHeight = Math.max(viewport.clientHeight - paddingY, 240);
-        const pageAspect = totalW / totalH;
+        const pageAspects = state.pages.length ? state.pages.map((page) => {
+          const metrics = getWorkspaceMetricsForPaper(getPageOrientation(page));
+          return metrics.totalWidth / metrics.totalHeight;
+        }) : [1];
+        const pageAspect = Math.min(...pageAspects);
         const viewportAspect = availableWidth / availableHeight;
         const estimatedCols = Math.sqrt(pageCount * (viewportAspect / pageAspect));
         const cols = Math.max(1, Math.min(pageCount, Math.ceil(estimatedCols)));
@@ -573,8 +689,9 @@
 
       window.init = function() {
         try { lucide.createIcons(); } catch(e) {}
+        normalizePages();
         window.setPaper('letter');
-        updateOrientationButton();
+        syncActivePageOrientation();
         window.setupEventListeners();
         window.updateGridSize('0.25');
         setTimeout(window.fitAuto, 300);
@@ -582,12 +699,17 @@
 
       window.setPaper = function(type) {
         saveHistory(); state.paper = type; state.unit = PAPER_CONFIG[type].unit;
-        updateOrientationButton();
+        syncActivePageOrientation();
         window.renderWorkspace();
       };
 
       window.toggleOrientation = function() {
-        state.orientation = state.orientation === 'portrait' ? 'landscape' : 'portrait';
+        const page = getActivePage();
+        const fromOrientation = getPageOrientation(page);
+        const toOrientation = fromOrientation === 'portrait' ? 'landscape' : 'portrait';
+        saveHistory();
+        rotatePageElements(page, fromOrientation, toOrientation);
+        state.orientation = toOrientation;
         updateOrientationButton();
         const viewport = document.getElementById('viewport');
         if (viewport) {
@@ -605,21 +727,21 @@
       window.toggleGrid = function() {
         state.gridVisible = !state.gridVisible;
         const btn = document.getElementById('gridToggle');
-        if(btn) { btn.classList.toggle('bg-indigo-600', state.gridVisible); btn.classList.toggle('text-white', state.gridVisible); }
+        if(btn) { btn.classList.toggle('bg-teal-600', state.gridVisible); btn.classList.toggle('text-white', state.gridVisible); }
         window.renderWorkspace();
       };
 
       window.toggleRulers = function() {
         state.rulerVisible = !state.rulerVisible;
         const btn = document.getElementById('rulerToggle');
-        if(btn) { btn.classList.toggle('bg-indigo-600', state.rulerVisible); btn.classList.toggle('text-white', state.rulerVisible); }
+        if(btn) { btn.classList.toggle('bg-teal-600', state.rulerVisible); btn.classList.toggle('text-white', state.rulerVisible); }
         window.renderWorkspace();
       };
 
       window.toggleBleed = function() {
         state.bleedVisible = !state.bleedVisible;
         const btn = document.getElementById('bleedToggle');
-        if(btn) { btn.classList.toggle('bg-indigo-600', state.bleedVisible); btn.classList.toggle('text-white', state.bleedVisible); }
+        if(btn) { btn.classList.toggle('bg-teal-600', state.bleedVisible); btn.classList.toggle('text-white', state.bleedVisible); }
         window.renderWorkspace();
       };
 
@@ -634,30 +756,34 @@
       window.undo = () => {
         if (state.history.length) {
           state.pages = JSON.parse(state.history.pop());
+          normalizePages();
           state.currentPageIndex = Math.min(state.currentPageIndex, state.pages.length - 1);
           state.selectedIndices = [];
           updatePropsPanel();
           updateUndoButton();
+          syncActivePageOrientation();
           window.renderWorkspace();
         }
       };
-      window.prevPage = () => { if (state.currentPageIndex > 0) { state.currentPageIndex--; window.renderWorkspace(); } };
-      window.nextPage = () => { if (state.currentPageIndex < state.pages.length - 1) { state.currentPageIndex++; window.renderWorkspace(); } };
-      window.addPage = () => { saveHistory(); state.pages.push({ elements: [] }); state.currentPageIndex = state.pages.length - 1; window.renderWorkspace(); };
+      window.prevPage = () => { if (state.currentPageIndex > 0) { state.currentPageIndex--; syncActivePageOrientation(); window.renderWorkspace(); } };
+      window.nextPage = () => { if (state.currentPageIndex < state.pages.length - 1) { state.currentPageIndex++; syncActivePageOrientation(); window.renderWorkspace(); } };
+      window.addPage = () => { saveHistory(); state.pages.push({ elements: [], orientation: state.orientation }); state.currentPageIndex = state.pages.length - 1; syncActivePageOrientation(); window.renderWorkspace(); };
       window.copyPage = () => {
         saveHistory();
         const clonedPage = JSON.parse(JSON.stringify(state.pages[state.currentPageIndex]));
+        normalizePage(clonedPage);
         state.pages.splice(state.currentPageIndex + 1, 0, clonedPage);
         state.currentPageIndex += 1;
+        syncActivePageOrientation();
         window.renderWorkspace();
       };
-      window.deletePage = () => { if (state.pages.length > 1) { saveHistory(); state.pages.splice(state.currentPageIndex, 1); state.currentPageIndex = Math.max(0, state.currentPageIndex - 1); window.renderWorkspace(); } };
+      window.deletePage = () => { if (state.pages.length > 1) { saveHistory(); state.pages.splice(state.currentPageIndex, 1); state.currentPageIndex = Math.max(0, state.currentPageIndex - 1); syncActivePageOrientation(); window.renderWorkspace(); } };
       
       window.setTool = (t) => {
         state.tool = t;
         document.querySelectorAll('.tool-btn').forEach(b => {
           const isActive = b.id === `tool-${t}`;
-          b.classList.toggle('bg-indigo-600', isActive); b.classList.toggle('text-white', isActive);
+          b.classList.toggle('bg-teal-600', isActive); b.classList.toggle('text-white', isActive);
           b.classList.toggle('text-slate-400', !isActive); b.classList.toggle('shadow-md', isActive);
         });
         state.selectedIndices = []; state.editingIndex = null;
@@ -731,7 +857,9 @@
           const now = new Date();
           const pad2 = (value) => String(value).padStart(2, '0');
           const stamp = `${pad2(now.getMonth() + 1)}${pad2(now.getDate())}${String(now.getFullYear()).slice(-2)}-${pad2(now.getHours())}${pad2(now.getMinutes())}`;
-          const { width: pageWidth, height: pageHeight } = getPaperMetrics();
+          const firstPage = normalizePage(JSON.parse(JSON.stringify(state.pages[0] || { elements: [], orientation: 'portrait' })));
+          const firstOrientation = getPageOrientation(firstPage);
+          const { width: pageWidth, height: pageHeight } = getPaperMetrics(firstOrientation);
           const pdf = new jsPDFCtor({
             orientation: pageWidth >= pageHeight ? 'landscape' : 'portrait',
             unit: 'pt',
@@ -741,6 +869,8 @@
 
           const svgNs = "http://www.w3.org/2000/svg";
           const renderPageToDataUrl = async (page) => {
+            const pageOrientation = getPageOrientation(page);
+            const { width: pageWidth, height: pageHeight } = getPaperMetrics(pageOrientation);
             const svg = document.createElementNS(svgNs, "svg");
             svg.setAttribute("xmlns", svgNs);
             svg.setAttribute("width", pageWidth);
@@ -862,9 +992,12 @@
           };
 
           for (let index = 0; index < state.pages.length; index++) {
-            if (index > 0) pdf.addPage([pageWidth, pageHeight], pageWidth >= pageHeight ? 'landscape' : 'portrait');
-            const pageImage = await renderPageToDataUrl(state.pages[index]);
-            pdf.addImage(pageImage, exportQuality.mime === 'image/png' ? 'PNG' : 'JPEG', 0, 0, pageWidth, pageHeight, undefined, exportQuality.compression);
+            const page = normalizePage(state.pages[index]);
+            const pageOrientation = getPageOrientation(page);
+            const { width: nextPageWidth, height: nextPageHeight } = getPaperMetrics(pageOrientation);
+            if (index > 0) pdf.addPage([nextPageWidth, nextPageHeight], pageOrientation);
+            const pageImage = await renderPageToDataUrl(page);
+            pdf.addImage(pageImage, exportQuality.mime === 'image/png' ? 'PNG' : 'JPEG', 0, 0, nextPageWidth, nextPageHeight, undefined, exportQuality.compression);
           }
 
           pdf.save(`PDFbaker-${stamp}.pdf`);
@@ -904,15 +1037,21 @@
         if (!workspace) return;
         workspace.innerHTML = '';
         workspace.style.gridTemplateColumns = '';
+        const activePage = getActivePage();
+        state.orientation = getPageOrientation(activePage);
+        updateOrientationButton();
         workspace.style.alignSelf = state.viewMode === 'canvas' && state.pages.length === 1 ? 'center' : (state.viewMode === 'canvas' ? 'flex-start' : 'center');
         const pageChangeDirection = state.viewMode === 'canvas' && state.lastCanvasPageIndex !== null
           ? (state.currentPageIndex > state.lastCanvasPageIndex ? 'next' : (state.currentPageIndex < state.lastCanvasPageIndex ? 'prev' : null))
           : null;
-        const { pageWidth: w, pageHeight: h, bleedPx, rulerOffset, totalWidth: totalW, totalHeight: totalH } = getWorkspaceMetrics();
+        const activeMetrics = getWorkspaceMetrics(activePage);
 
-        updateNotebookLayout(totalW, totalH);
+        updateNotebookLayout(activeMetrics.totalWidth, activeMetrics.totalHeight);
 
         state.pages.forEach((page, idx) => {
+          normalizePage(page);
+          const pageOrientation = getPageOrientation(page);
+          const { pageWidth: w, pageHeight: h, bleedPx, rulerOffset, totalWidth: totalW, totalHeight: totalH } = getWorkspaceMetricsForPaper(pageOrientation);
           const wrapper = document.createElement('div');
           wrapper.className = `page-assembly-wrapper ${idx === state.currentPageIndex ? 'active-page' : ''}`;
           if (state.viewMode === 'canvas' && idx === state.currentPageIndex && pageChangeDirection) {
@@ -999,20 +1138,20 @@
           // Layer 3: Helpers
           const marquee = document.createElementNS("http://www.w3.org/2000/svg", "rect");
           marquee.id = `marquee-${idx}`; marquee.setAttribute("class", "hidden");
-          marquee.setAttribute("fill", "rgba(99, 102, 241, 0.1)"); marquee.setAttribute("stroke", "#6366f1");
+          marquee.setAttribute("fill", "rgba(15, 118, 110, 0.1)"); marquee.setAttribute("stroke", "#0f766e");
           marquee.setAttribute("stroke-width", "1"); marquee.setAttribute("stroke-dasharray", "4");
 
           const snapDot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-          snapDot.id = `snapDot-${idx}`; snapDot.setAttribute("r", "3.5"); snapDot.setAttribute("fill", "#6366f1");
+          snapDot.id = `snapDot-${idx}`; snapDot.setAttribute("r", "3.5"); snapDot.setAttribute("fill", "#0f766e");
           snapDot.setAttribute("class", "opacity-0 pointer-events-none transition-opacity duration-75");
 
           const tLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
           tLine.id = `tempLine-${idx}`; tLine.setAttribute("class", "hidden");
-          tLine.setAttribute("stroke", "#6366f1"); tLine.setAttribute("stroke-width", "1.5"); tLine.setAttribute("stroke-dasharray", "4");
+          tLine.setAttribute("stroke", "#0f766e"); tLine.setAttribute("stroke-width", "1.5"); tLine.setAttribute("stroke-dasharray", "4");
 
           const tRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
           tRect.id = `tempRect-${idx}`; tRect.setAttribute("class", "hidden");
-          tRect.setAttribute("fill", "rgba(99, 102, 241, 0.1)"); tRect.setAttribute("stroke", "#6366f1");
+          tRect.setAttribute("fill", "rgba(15, 118, 110, 0.1)"); tRect.setAttribute("stroke", "#0f766e");
           tRect.setAttribute("stroke-width", "1"); tRect.setAttribute("stroke-dasharray", "4");
 
           // Layer 4: Bleed Frame (Top)
@@ -1052,7 +1191,7 @@
               textBoxRect.setAttribute("height", el.h);
               textBoxRect.setAttribute("fill", "#ffffff");
               textBoxRect.setAttribute("fill-opacity", "0.72");
-              textBoxRect.setAttribute("stroke", "#6366f1");
+              textBoxRect.setAttribute("stroke", "#0f766e");
               textBoxRect.setAttribute("stroke-opacity", "0.18");
               textBoxRect.setAttribute("stroke-width", "1");
               textBoxRect.setAttribute("stroke-dasharray", "4 3");

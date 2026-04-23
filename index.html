@@ -14,13 +14,13 @@
     <header class="border-b bg-white px-6 py-2 shadow-sm flex items-center justify-between z-20">
       <div class="flex items-center gap-4">
         <div class="flex flex-col">
-          <h1 class="text-xl font-bold tracking-tight text-indigo-900 leading-none italic">PAGE-BAKER</h1>
+          <h1 class="text-xl font-bold tracking-tight text-teal-900 leading-none italic">PAGE-BAKER</h1>
         </div>
         
         <div class="h-8 w-px bg-slate-200 mx-2"></div>
         
         <div class="flex items-center gap-2">
-          <select id="paperSelect" onchange="window.setPaper(this.value)" class="header-select text-xs font-black bg-slate-100 border border-slate-200 rounded-md px-3 py-2 outline-none focus:ring-2 ring-indigo-100 uppercase">
+          <select id="paperSelect" onchange="window.setPaper(this.value)" class="header-select text-xs font-black bg-slate-100 border border-slate-200 rounded-md px-3 py-2 outline-none focus:ring-2 ring-teal-100 uppercase">
             <option value="letter">Letter (8.5x11")</option>
             <option value="legal">Legal (8.5x14")</option>
             <option value="ledger">Ledger (11x17")</option>
@@ -29,13 +29,15 @@
           </select>
 
           <button onclick="window.toggleOrientation()" id="orientationToggle" class="flex items-center gap-2 text-xs font-black bg-slate-100 border border-slate-200 rounded-md px-3 py-2 text-slate-700 hover:bg-slate-200 transition-colors uppercase" title="Toggle Portrait / Landscape">
-            <i data-lucide="rotate-cw" class="w-4 h-4 text-indigo-600"></i>
+            <i data-lucide="rotate-cw" class="w-4 h-4 text-teal-600"></i>
             <span id="orientationLabel">Portrait</span>
           </button>
 
-          <select id="gridSelect" onchange="window.updateGridSize(this.value)" class="header-select text-xs font-black bg-slate-100 border border-slate-200 rounded-md px-3 py-2 outline-none focus:ring-2 ring-indigo-100 uppercase">
+          <select id="gridSelect" onchange="window.updateGridSize(this.value)" class="header-select text-xs font-black bg-slate-100 border border-slate-200 rounded-md px-3 py-2 outline-none focus:ring-2 ring-teal-100 uppercase">
             <optgroup label="Imperial">
+              <option value="0.125">1/8"</option>
               <option value="0.25" selected>1/4"</option>
+              <option value="0.1">0.1" (100mil)</option>
               <option value="0.28125">College (9/32")</option>
               <option value="0.34375">Wide (11/32")</option>
             </optgroup>
@@ -59,14 +61,14 @@
           </div>
           <button onclick="window.nextPage()" class="p-1.5 hover:bg-white rounded-md transition-all text-slate-600"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
           <div class="w-px h-4 bg-slate-200 mx-1"></div>
-          <button onclick="window.addPage()" class="p-1.5 text-indigo-600 hover:bg-white rounded-md transition-all" title="Add Page"><i data-lucide="file-plus-2" class="w-4 h-4"></i></button>
+          <button onclick="window.addPage()" class="p-1.5 text-teal-600 hover:bg-white rounded-md transition-all" title="Add Page"><i data-lucide="file-plus-2" class="w-4 h-4"></i></button>
           <button onclick="window.copyPage()" class="p-1.5 text-sky-600 hover:bg-white rounded-md transition-all" title="Copy Page"><i data-lucide="copy" class="w-4 h-4"></i></button>
           <button onclick="window.deletePage()" id="deletePageBtn" class="p-1.5 text-rose-600 hover:bg-white rounded-md transition-all" title="Delete Page"><i data-lucide="file-minus-2" class="w-4 h-4"></i></button>
           <div class="w-px h-4 bg-slate-200 mx-1"></div>
           <button onclick="window.toggleNotebookView()" id="viewToggle" class="p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white rounded-md transition-all" title="Notebook View"><i data-lucide="layout-grid" class="w-4 h-4"></i></button>
-          <button onclick="window.toggleGrid()" id="gridToggle" class="p-1.5 text-white bg-indigo-600 hover:bg-indigo-700 rounded-md transition-colors shadow-sm" title="Toggle Grid"><i data-lucide="grid" class="w-4 h-4"></i></button>
-          <button onclick="window.toggleRulers()" id="rulerToggle" class="p-1.5 text-white bg-indigo-600 hover:bg-indigo-700 rounded-md transition-colors shadow-sm" title="Toggle Rulers"><i data-lucide="ruler" class="w-4 h-4"></i></button>
-          <button onclick="window.toggleBleed()" id="bleedToggle" class="p-1.5 text-white bg-indigo-600 hover:bg-indigo-700 rounded-md transition-colors shadow-sm" title="Toggle Bleed"><i data-lucide="droplets" class="w-4 h-4"></i></button>
+          <button onclick="window.toggleGrid()" id="gridToggle" class="p-1.5 text-white bg-teal-600 hover:bg-teal-700 rounded-md transition-colors shadow-sm" title="Toggle Grid"><i data-lucide="grid" class="w-4 h-4"></i></button>
+          <button onclick="window.toggleRulers()" id="rulerToggle" class="p-1.5 text-white bg-teal-600 hover:bg-teal-700 rounded-md transition-colors shadow-sm" title="Toggle Rulers"><i data-lucide="ruler" class="w-4 h-4"></i></button>
+          <button onclick="window.toggleBleed()" id="bleedToggle" class="p-1.5 text-white bg-teal-600 hover:bg-teal-700 rounded-md transition-colors shadow-sm" title="Toggle Bleed"><i data-lucide="droplets" class="w-4 h-4"></i></button>
         </div>
       </div>
       
@@ -131,17 +133,17 @@
           </div>
           <div id="textSizeControl" class="hidden flex items-center gap-1.5">
             <label class="text-[8px] font-bold text-slate-400 uppercase whitespace-nowrap">Size</label>
-            <span id="textSizeVal" class="text-[9px] font-bold text-indigo-600 w-8 text-center">12px</span>
+            <span id="textSizeVal" class="text-[9px] font-bold text-teal-600 w-8 text-center">12px</span>
             <input type="range" min="8" max="48" step="0.5" value="12" id="textSizeSlider" oninput="window.updateSelectedTextFontSize(this.value)" class="w-16 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer">
           </div>
           <div id="weightControl" class="flex items-center gap-1.5">
             <label class="text-[8px] font-bold text-slate-400 uppercase whitespace-nowrap">Weight</label>
-            <span id="weightVal" class="text-[9px] font-bold text-indigo-600 w-8 text-center">1px</span>
+            <span id="weightVal" class="text-[9px] font-bold text-teal-600 w-8 text-center">1px</span>
             <input type="range" min="0.5" max="10" step="0.5" value="1" id="weightSlider" oninput="window.updateSelectedStyle('weight', this.value)" class="w-16 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer">
           </div>
           <div class="flex items-center gap-1.5">
             <label class="text-[8px] font-bold text-slate-400 uppercase whitespace-nowrap">Opacity</label>
-            <span id="opacityVal" class="text-[9px] font-bold text-indigo-600 w-10 text-center">100%</span>
+            <span id="opacityVal" class="text-[9px] font-bold text-teal-600 w-10 text-center">100%</span>
             <input type="range" min="5" max="100" step="5" value="100" id="opacitySlider" oninput="window.updateSelectedStyle('opacity', this.value)" class="w-16 h-1 bg-slate-200 appearance-none cursor-pointer">
           </div>
           <button onclick="window.deleteSelected()" class="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors" title="Delete Selected"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
@@ -152,7 +154,7 @@
         </button>
         <button onclick="window.clearCanvas()" class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-rose-600 bg-white border border-rose-100 rounded-lg hover:bg-rose-50 transition-colors" title="Clear All"><i data-lucide="refresh-cw" class="w-4 h-4"></i><span class="hidden sm:inline">Reset</span></button>
         <div class="h-8 w-px bg-slate-200 mx-1"></div>
-        <button onclick="window.downloadPDF()" class="px-5 py-2 text-sm font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-md transition-all flex items-center gap-2">
+        <button onclick="window.downloadPDF()" class="px-5 py-2 text-sm font-bold text-white bg-teal-600 rounded-lg hover:bg-teal-700 shadow-md transition-all flex items-center gap-2">
           <i data-lucide="cooking-pot" class="w-4 h-4"></i>
           <span>Bake PDF</span>
         </button>
@@ -162,7 +164,7 @@
     <div class="flex-1 flex overflow-hidden">
       <!-- Toolbox Sidebar -->
       <aside class="w-16 border-r bg-white flex flex-col items-center py-6 gap-4 z-10 shadow-sm">
-        <button onclick="window.setTool('select')" id="tool-select" class="tool-btn p-3 rounded-xl text-white bg-indigo-600 shadow-md transition-all" title="Select / Move / Edit"><i data-lucide="mouse-pointer-2" class="w-6 h-6"></i></button>
+        <button onclick="window.setTool('select')" id="tool-select" class="tool-btn p-3 rounded-xl text-white bg-teal-600 shadow-md transition-all" title="Select / Move / Edit"><i data-lucide="mouse-pointer-2" class="w-6 h-6"></i></button>
         <div class="w-8 h-px bg-slate-100 my-2"></div>
         <button onclick="window.setTool('line')" id="tool-line" class="tool-btn p-3 rounded-xl text-slate-400 hover:bg-slate-50 transition-all" title="Line (Sel + H/V to Span)"><i data-lucide="minus" class="w-6 h-6"></i></button>
         <button onclick="window.setTool('rect')" id="tool-rect" class="tool-btn p-3 rounded-xl text-slate-400 hover:bg-slate-50 transition-all" title="Box"><i data-lucide="square" class="w-6 h-6"></i></button>
@@ -191,7 +193,7 @@
       <div id="qualityOptions" class="space-y-2"></div>
       <div class="flex items-center justify-end gap-2 mt-5">
         <button onclick="window.closeQualityModal()" class="px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
-        <button onclick="window.confirmQualityModal()" class="px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700">Download</button>
+          <button onclick="window.confirmQualityModal()" class="px-4 py-2 text-sm font-bold text-white bg-teal-600 rounded-lg hover:bg-teal-700">Download</button>
       </div>
     </div>
   </div>
