@@ -388,6 +388,60 @@
         const bleedPx = getVisibleBleedPx();
         const rulerOffset = getCanvasRulerOffset();
         const isInch = state.unit === 'in';
+        if (isMetricMode()) {
+          const sheetSize = size - (2 * bleedPx);
+          const origin = bleedPx + (sheetSize / 2);
+          const halfStep = state.gridSize / 2;
+          const labelStep = state.gridSize;
+          const maxDistance = Math.max(origin - bleedPx, (bleedPx + sheetSize) - origin);
+          const tickPositions = [];
+          const addTick = (value) => {
+            const rounded = Math.round(value * 100) / 100;
+            if (!tickPositions.some((existing) => Math.abs(existing - rounded) < 0.001)) tickPositions.push(rounded);
+          };
+
+          for (let offset = 0; offset <= maxDistance + (halfStep / 2); offset += halfStep) {
+            addTick(origin - offset);
+            if (offset > 0) addTick(origin + offset);
+          }
+
+          tickPositions
+            .sort((a, b) => a - b)
+            .filter((i) => i >= -0.1 && i <= size + 0.1)
+            .forEach((i) => {
+            const relMm = (i - origin) / unitScale;
+            const absMm = Math.abs(relMm);
+            const isZero = Math.abs(relMm) < 0.01;
+            const isMajor = isZero || Math.abs(absMm % (labelStep / unitScale)) < 0.01;
+            const isHalf = !isMajor && Math.abs((absMm * 2) % (labelStep / unitScale)) < 0.01;
+            const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            const tickSize = isZero ? 20 : (isMajor ? 16 : (isHalf ? 12 : 7));
+
+            if (orientation === 'horizontal') {
+              line.setAttribute("x1", i); line.setAttribute("x2", i);
+              line.setAttribute("y1", rulerOffset - tickSize); line.setAttribute("y2", rulerOffset);
+            } else {
+              line.setAttribute("y1", i); line.setAttribute("y2", i);
+              line.setAttribute("x1", rulerOffset - tickSize); line.setAttribute("x2", rulerOffset);
+            }
+
+            line.setAttribute("class", isZero ? "ruler-center-marker" : "ruler-tick");
+            svg.appendChild(line);
+
+            if (isMajor) {
+              const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+              text.setAttribute("class", "ruler-label");
+              text.textContent = formatMetricValue(relMm);
+              if (orientation === 'horizontal') {
+                text.setAttribute("x", i + 2); text.setAttribute("y", 10);
+              } else {
+                text.setAttribute("x", 2); text.setAttribute("y", i + 8);
+              }
+              svg.appendChild(text);
+            }
+          });
+          return;
+        }
         const isHybridImperialGrid = isInch && Math.abs((state.gridSize / unitScale) - 0.2) < 0.01;
         const roundTick = (value) => Math.round(value * 100) / 100;
         const addTick = (positions, value) => {
@@ -715,6 +769,48 @@
         return state.bleedVisible ? state.bleedUnits * state.gridSize : 0;
       }
 
+      function isMetricMode() {
+        return state.unit === 'mm';
+      }
+
+      function getCanvasPageOrigin(pageWidth, pageHeight, bleedPx) {
+        return isMetricMode()
+          ? { x: bleedPx + (pageWidth / 2), y: bleedPx + (pageHeight / 2) }
+          : { x: bleedPx, y: bleedPx };
+      }
+
+      function toCanvasPoint(point, pageWidth, pageHeight, bleedPx) {
+        const origin = getCanvasPageOrigin(pageWidth, pageHeight, bleedPx);
+        return { x: origin.x + point.x, y: origin.y + point.y };
+      }
+
+      function getGridStepPx() {
+        return isMetricMode() ? state.gridSize / 2 : state.gridSize / 2;
+      }
+
+      function formatMetricValue(value) {
+        const rounded = Math.round(value);
+        return Math.abs(value - rounded) < 0.001 ? `${rounded}` : `${Math.round(value * 10) / 10}`;
+      }
+
+      function setGridSelectValue(value) {
+        const select = document.getElementById('gridSelect');
+        if (select) select.value = value;
+      }
+
+      function syncGridToPaperUnit(nextUnit) {
+        const currentValue = nextUnit === 'mm' ? state.gridSize / PMM : state.gridSize / PPI;
+        if (nextUnit === 'mm') {
+          if (![4, 5, 6].some((allowed) => Math.abs(currentValue - allowed) < 0.01)) {
+            state.gridSize = 5 * PMM;
+            setGridSelectValue('5mm');
+          }
+        } else if (![0.25, 0.2, 0.28125, 0.34375].some((allowed) => Math.abs(currentValue - allowed) < 0.001)) {
+          state.gridSize = 0.25 * PPI;
+          setGridSelectValue('0.25');
+        }
+      }
+
       function getCanvasRulerOffset() {
         return state.viewMode === 'canvas' && state.rulerVisible ? 24 : 0;
       }
@@ -755,6 +851,7 @@
 
       window.setPaper = function(type) {
         saveHistory(); state.paper = type; state.unit = PAPER_CONFIG[type].unit;
+        syncGridToPaperUnit(state.unit);
         syncActivePageOrientation();
         window.renderWorkspace();
       };
@@ -776,7 +873,12 @@
       };
 
       window.updateGridSize = function(val) {
-        state.gridSize = val.endsWith('mm') ? parseFloat(val) * PMM : parseFloat(val) * PPI;
+        if (val.endsWith('mm')) {
+          const metricMm = [4, 5, 6].includes(parseFloat(val)) ? parseFloat(val) : 5;
+          state.gridSize = metricMm * PMM;
+        } else {
+          state.gridSize = parseFloat(val) * PPI;
+        }
         window.renderWorkspace();
       };
 
@@ -927,6 +1029,7 @@
           const renderPageToDataUrl = async (page) => {
             const pageOrientation = getPageOrientation(page);
             const { width: pageWidth, height: pageHeight } = getPaperMetrics(pageOrientation);
+            const toPdf = (point) => toCanvasPoint(point, pageWidth, pageHeight, 0);
             const svg = document.createElementNS(svgNs, "svg");
             svg.setAttribute("xmlns", svgNs);
             svg.setAttribute("width", pageWidth);
@@ -948,29 +1051,34 @@
               let node;
 
               if (el.type === 'line') {
+                const p1 = toPdf({ x: el.x1, y: el.y1 });
+                const p2 = toPdf({ x: el.x2, y: el.y2 });
                 node = document.createElementNS(svgNs, "line");
-                node.setAttribute("x1", `${el.x1}`);
-                node.setAttribute("y1", `${el.y1}`);
-                node.setAttribute("x2", `${el.x2}`);
-                node.setAttribute("y2", `${el.y2}`);
+                node.setAttribute("x1", `${p1.x}`);
+                node.setAttribute("y1", `${p1.y}`);
+                node.setAttribute("x2", `${p2.x}`);
+                node.setAttribute("y2", `${p2.y}`);
                 node.setAttribute("fill", "none");
               } else if (el.type === 'rect') {
+                const p = toPdf({ x: el.x, y: el.y });
                 node = document.createElementNS(svgNs, "rect");
-                node.setAttribute("x", `${el.x}`);
-                node.setAttribute("y", `${el.y}`);
+                node.setAttribute("x", `${p.x}`);
+                node.setAttribute("y", `${p.y}`);
                 node.setAttribute("width", `${el.w}`);
                 node.setAttribute("height", `${el.h}`);
                 node.setAttribute("fill", "none");
               } else if (el.type === 'dot') {
+                const p = toPdf({ x: el.x, y: el.y });
                 node = document.createElementNS(svgNs, "circle");
-                node.setAttribute("cx", `${el.x}`);
-                node.setAttribute("cy", `${el.y}`);
+                node.setAttribute("cx", `${p.x}`);
+                node.setAttribute("cy", `${p.y}`);
                 node.setAttribute("r", `${Math.max(0.5, Math.min(5, weight))}`);
                 node.setAttribute("fill", "#334155");
               } else if (el.type === 'cross') {
                 node = document.createElementNS(svgNs, "path");
                 const size = 4;
-                node.setAttribute("d", `M ${el.x-size} ${el.y} H ${el.x+size} M ${el.x} ${el.y-size} V ${el.y+size}`);
+                const p = toPdf({ x: el.x, y: el.y });
+                node.setAttribute("d", `M ${p.x-size} ${p.y} H ${p.x+size} M ${p.x} ${p.y-size} V ${p.y+size}`);
                 node.setAttribute("fill", "none");
                 node.setAttribute("stroke-linecap", "round");
               } else if (el.type === 'text') {
@@ -983,11 +1091,12 @@
                 const textAlign = el.style?.textAlign || 'left';
                 const verticalAlign = el.style?.verticalAlign || 'top';
                 const contentHeight = Math.max(lineHeight, lines.length * lineHeight);
+                const p = toPdf({ x: el.x, y: el.y });
                 const startY = verticalAlign === 'center'
-                  ? el.y + paddingY + Math.max(0, (el.h - paddingY * 2 - contentHeight) / 2)
+                  ? p.y + paddingY + Math.max(0, (el.h - paddingY * 2 - contentHeight) / 2)
                   : verticalAlign === 'bottom'
-                    ? el.y + el.h - paddingY - contentHeight
-                    : el.y + paddingY;
+                    ? p.y + el.h - paddingY - contentHeight
+                    : p.y + paddingY;
                 const textNode = document.createElementNS(svgNs, "text");
                 textNode.setAttribute("font-family", "Helvetica, Arial, sans-serif");
                 textNode.setAttribute("font-size", `${fontSize}`);
@@ -995,10 +1104,10 @@
                 textNode.setAttribute("font-style", el.style?.fontStyle || 'normal');
                 textNode.setAttribute("fill", "#334155");
                 const xPos = textAlign === 'center'
-                  ? el.x + (el.w / 2)
+                  ? p.x + (el.w / 2)
                   : textAlign === 'right'
-                    ? el.x + el.w - paddingX
-                    : el.x + paddingX;
+                    ? p.x + el.w - paddingX
+                    : p.x + paddingX;
                 textNode.setAttribute("x", `${xPos}`);
                 textNode.setAttribute("text-anchor", textAlign === 'center' ? 'middle' : textAlign === 'right' ? 'end' : 'start');
                 lines.forEach((line, lineIndex) => {
@@ -1072,20 +1181,33 @@
         const rawY = (e.clientY - rect.top) / state.zoom;
         const { bleedPx, pageWidth: sheetW, pageHeight: sheetH } = getWorkspaceMetrics();
         const step = state.gridSize / 2;
-        const ox = (sheetW / 2 + bleedPx) % state.gridSize;
-        const oy = (sheetH / 2 + bleedPx) % state.gridSize;
-        const fx = Math.round((rawX - ox) / step) * step + ox;
-        const fy = Math.round((rawY - oy) / step) * step + oy;
+        const originX = isMetricMode() ? (bleedPx + (sheetW / 2)) : bleedPx;
+        const originY = isMetricMode() ? (bleedPx + (sheetH / 2)) : bleedPx;
+        const ox = isMetricMode() ? originX : ((sheetW / 2 + bleedPx) % state.gridSize);
+        const oy = isMetricMode() ? originY : ((sheetH / 2 + bleedPx) % state.gridSize);
+        const fx = isMetricMode()
+          ? Math.round((rawX - originX) / step) * step
+          : Math.round((rawX - ox) / step) * step + ox;
+        const fy = isMetricMode()
+          ? Math.round((rawY - originY) / step) * step
+          : Math.round((rawY - oy) / step) * step + oy;
 
         const dot = document.getElementById(`snapDot-${state.currentPageIndex}`);
         if (dot) {
-          dot.setAttribute('cx', fx); dot.setAttribute('cy', fy);
+          const dotPoint = isMetricMode() ? toCanvasPoint({ x: fx, y: fy }, sheetW, sheetH, bleedPx) : { x: fx, y: fy };
+          dot.setAttribute('cx', dotPoint.x); dot.setAttribute('cy', dotPoint.y);
           if (state.tool !== 'select' || state.isDrawing || state.isDragging) dot.classList.remove('opacity-0');
           else dot.classList.add('opacity-0');
         }
         const cd = document.getElementById('coordDisplay');
-        if(cd) cd.innerText = `X: ${((fx - bleedPx - sheetW/2) / (state.unit === 'in' ? PPI : PMM)).toFixed(2)} Y: ${((fy - bleedPx - sheetH/2) / (state.unit === 'in' ? PPI : PMM)).toFixed(2)}`;
-        return { x: fx - bleedPx, y: fy - bleedPx };
+        if (cd) {
+          if (isMetricMode()) {
+            cd.innerText = `X: ${formatMetricValue(fx / PMM)} Y: ${formatMetricValue(fy / PMM)}`;
+          } else {
+            cd.innerText = `X: ${((fx - bleedPx - sheetW/2) / PPI).toFixed(2)} Y: ${((fy - bleedPx - sheetH/2) / PPI).toFixed(2)}`;
+          }
+        }
+        return isMetricMode() ? { x: fx, y: fy } : { x: fx - bleedPx, y: fy - bleedPx };
       };
 
       window.renderWorkspace = function() {
@@ -1108,6 +1230,7 @@
           normalizePage(page);
           const pageOrientation = getPageOrientation(page);
           const { pageWidth: w, pageHeight: h, bleedPx, rulerOffset, totalWidth: totalW, totalHeight: totalH } = getWorkspaceMetricsForPaper(pageOrientation);
+          const toCanvas = (point) => toCanvasPoint(point, w, h, bleedPx);
           const wrapper = document.createElement('div');
           wrapper.className = `page-assembly-wrapper ${idx === state.currentPageIndex ? 'active-page' : ''}`;
           if (state.viewMode === 'canvas' && idx === state.currentPageIndex && pageChangeDirection) {
@@ -1226,12 +1349,13 @@
             const isS = (idx === state.currentPageIndex && state.selectedIndices.includes(i));
             const op = ((el.style?.opacity || 100)/100)*mOp, wt = el.style?.weight || 1;
             let node;
-            if (el.type==='line') { node = document.createElementNS("http://www.w3.org/2000/svg", "line"); node.setAttribute("x1", el.x1+bleedPx); node.setAttribute("y1", el.y1+bleedPx); node.setAttribute("x2", el.x2+bleedPx); node.setAttribute("y2", el.y2+bleedPx); node.setAttribute("stroke", "#334155"); node.setAttribute("stroke-width", wt); if(el.style?.dash !== 'none') node.setAttribute("stroke-dasharray", el.style.dash); }
-            else if (el.type==='rect') { node = document.createElementNS("http://www.w3.org/2000/svg", "rect"); node.setAttribute("x", el.x+bleedPx); node.setAttribute("y", el.y+bleedPx); node.setAttribute("width", el.w); node.setAttribute("height", el.h); node.setAttribute("fill", "none"); node.setAttribute("stroke", "#334155"); node.setAttribute("stroke-width", wt); if(el.style?.dash !== 'none') node.setAttribute("stroke-dasharray", el.style.dash); }
-            else if (el.type==='dot') { node = document.createElementNS("http://www.w3.org/2000/svg", "circle"); node.setAttribute("cx", el.x+bleedPx); node.setAttribute("cy", el.y+bleedPx); node.setAttribute("r", Math.max(0.5, Math.min(5, wt))); node.setAttribute("fill", "#334155"); }
+            if (el.type==='line') { const p1 = toCanvas({ x: el.x1, y: el.y1 }); const p2 = toCanvas({ x: el.x2, y: el.y2 }); node = document.createElementNS("http://www.w3.org/2000/svg", "line"); node.setAttribute("x1", p1.x); node.setAttribute("y1", p1.y); node.setAttribute("x2", p2.x); node.setAttribute("y2", p2.y); node.setAttribute("stroke", "#334155"); node.setAttribute("stroke-width", wt); if(el.style?.dash !== 'none') node.setAttribute("stroke-dasharray", el.style.dash); }
+            else if (el.type==='rect') { const p = toCanvas({ x: el.x, y: el.y }); node = document.createElementNS("http://www.w3.org/2000/svg", "rect"); node.setAttribute("x", p.x); node.setAttribute("y", p.y); node.setAttribute("width", el.w); node.setAttribute("height", el.h); node.setAttribute("fill", "none"); node.setAttribute("stroke", "#334155"); node.setAttribute("stroke-width", wt); if(el.style?.dash !== 'none') node.setAttribute("stroke-dasharray", el.style.dash); }
+            else if (el.type==='dot') { const p = toCanvas({ x: el.x, y: el.y }); node = document.createElementNS("http://www.w3.org/2000/svg", "circle"); node.setAttribute("cx", p.x); node.setAttribute("cy", p.y); node.setAttribute("r", Math.max(0.5, Math.min(5, wt))); node.setAttribute("fill", "#334155"); }
             else if (el.type==='cross') {
               node = document.createElementNS("http://www.w3.org/2000/svg", "path");
-              const cx = el.x + bleedPx, cy = el.y + bleedPx, size = 4;
+              const { x: cx, y: cy } = toCanvas({ x: el.x, y: el.y });
+              const size = 4;
               node.setAttribute("d", `M ${cx-size} ${cy} H ${cx+size} M ${cx} ${cy-size} V ${cy+size}`);
               node.setAttribute("fill", "none");
               node.setAttribute("stroke", "#334155");
@@ -1241,8 +1365,9 @@
             else if (el.type==='text') {
               node = document.createElementNS("http://www.w3.org/2000/svg", "g");
               const textBoxRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-              textBoxRect.setAttribute("x", el.x + bleedPx);
-              textBoxRect.setAttribute("y", el.y + bleedPx);
+              const p = toCanvas({ x: el.x, y: el.y });
+              textBoxRect.setAttribute("x", p.x);
+              textBoxRect.setAttribute("y", p.y);
               textBoxRect.setAttribute("width", el.w);
               textBoxRect.setAttribute("height", el.h);
               textBoxRect.setAttribute("fill", "#ffffff");
@@ -1253,8 +1378,8 @@
               textBoxRect.setAttribute("stroke-dasharray", "4 3");
               node.appendChild(textBoxRect);
               const textLayer = document.createElementNS("http://www.w3.org/2000/svg", "foreignObject");
-              textLayer.setAttribute("x", el.x + bleedPx);
-              textLayer.setAttribute("y", el.y + bleedPx);
+              textLayer.setAttribute("x", p.x);
+              textLayer.setAttribute("y", p.y);
               textLayer.setAttribute("width", el.w);
               textLayer.setAttribute("height", el.h);
               const wrapperDiv = document.createElement('div');
@@ -1325,9 +1450,9 @@
             hit.setAttribute("class", "hit-target");
             if (isS) hit.classList.add('hit-target-selected');
             if (state.tool !== 'select' && !isS) hit.style.pointerEvents = 'none';
-            if (el.type==='line') { hit.setAttribute("x1", el.x1+bleedPx); hit.setAttribute("y1", el.y1+bleedPx); hit.setAttribute("x2", el.x2+bleedPx); hit.setAttribute("y2", el.y2+bleedPx); }
-            else if (el.type==='rect' || el.type==='text') { hit.setAttribute("x", el.x+bleedPx); hit.setAttribute("y", el.y+bleedPx); hit.setAttribute("width", el.w); hit.setAttribute("height", el.h); }
-            else { hit.setAttribute("cx", el.x+bleedPx); hit.setAttribute("cy", el.y+bleedPx); hit.setAttribute("r", 10); }
+            if (el.type==='line') { const p1 = toCanvas({ x: el.x1, y: el.y1 }); const p2 = toCanvas({ x: el.x2, y: el.y2 }); hit.setAttribute("x1", p1.x); hit.setAttribute("y1", p1.y); hit.setAttribute("x2", p2.x); hit.setAttribute("y2", p2.y); }
+            else if (el.type==='rect' || el.type==='text') { const p = toCanvas({ x: el.x, y: el.y }); hit.setAttribute("x", p.x); hit.setAttribute("y", p.y); hit.setAttribute("width", el.w); hit.setAttribute("height", el.h); }
+            else { const p = toCanvas({ x: el.x, y: el.y }); hit.setAttribute("cx", p.x); hit.setAttribute("cy", p.y); hit.setAttribute("r", 10); }
             hit.onmousedown = (e) => {
               e.stopPropagation();
               if (state.selectedIndices.includes(i) && state.tool === 'select') {
@@ -1361,7 +1486,11 @@
 
             if (isS && idx === state.currentPageIndex && singleSelection === i) {
               const handles = getElementHandles(el, bleedPx);
-              handles.edges.forEach((pt) => {
+              const canvasHandles = {
+                center: toCanvas({ x: handles.center.x - bleedPx, y: handles.center.y - bleedPx }),
+                edges: handles.edges.map((pt) => toCanvas({ x: pt.x - bleedPx, y: pt.y - bleedPx }))
+              };
+              canvasHandles.edges.forEach((pt, edgeIndex) => {
                 const edgeHandle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
                 edgeHandle.setAttribute("cx", pt.x);
                 edgeHandle.setAttribute("cy", pt.y);
@@ -1372,15 +1501,15 @@
                   saveHistory();
                   state.isModifying = true;
                   state.dragElementIndex = i;
-                  state.modifyHandleType = { kind: 'edge', index: handles.edges.indexOf(pt) };
+                  state.modifyHandleType = { kind: 'edge', index: edgeIndex };
                   state.startPoint = window.getSnappedCoords(e);
                 };
                 gElements.appendChild(edgeHandle);
               });
 
               const centerHandle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-              centerHandle.setAttribute("cx", handles.center.x);
-              centerHandle.setAttribute("cy", handles.center.y);
+              centerHandle.setAttribute("cx", canvasHandles.center.x);
+              centerHandle.setAttribute("cy", canvasHandles.center.y);
               centerHandle.setAttribute("r", "6");
               centerHandle.setAttribute("class", "handle-center");
               centerHandle.onmousedown = (e) => {
@@ -1398,9 +1527,10 @@
           if (idx === state.currentPageIndex && state.selectedIndices.length > 1) {
             const groupCenter = getSelectionGroupCenter(page, state.selectedIndices, bleedPx);
             if (groupCenter) {
+              const canvasGroupCenter = toCanvas({ x: groupCenter.x - bleedPx, y: groupCenter.y - bleedPx });
               const centerHandle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-              centerHandle.setAttribute("cx", groupCenter.x);
-              centerHandle.setAttribute("cy", groupCenter.y);
+              centerHandle.setAttribute("cx", canvasGroupCenter.x);
+              centerHandle.setAttribute("cy", canvasGroupCenter.y);
               centerHandle.setAttribute("r", "7");
               centerHandle.setAttribute("class", "handle-center");
               centerHandle.onmousedown = (e) => {
@@ -1422,12 +1552,12 @@
                   if (state.tool === 'select') {
                     state.isSelecting = true;
                     state.startPoint = c;
-                    const startBleedPx = getVisibleBleedPx();
                     const marqueeEl = document.getElementById(`marquee-${state.currentPageIndex}`);
                     if (marqueeEl) {
                       marqueeEl.classList.remove('hidden');
-                      marqueeEl.setAttribute('x', c.x + startBleedPx);
-                      marqueeEl.setAttribute('y', c.y + startBleedPx);
+                      const startCanvas = toCanvas(c);
+                      marqueeEl.setAttribute('x', startCanvas.x);
+                      marqueeEl.setAttribute('y', startCanvas.y);
                       marqueeEl.setAttribute('width', 0);
                       marqueeEl.setAttribute('height', 0);
                     }
@@ -1484,15 +1614,22 @@
         };
         window.onmousemove = (e) => {
           const c = window.getSnappedCoords(e);
-          const bleedPx = getVisibleBleedPx();
           if (state.isSelecting) {
             const marqueeEl = document.getElementById(`marquee-${state.currentPageIndex}`);
             if (marqueeEl) {
               marqueeEl.classList.remove('hidden');
-              marqueeEl.setAttribute('x', Math.min(state.startPoint.x, c.x) + bleedPx);
-              marqueeEl.setAttribute('y', Math.min(state.startPoint.y, c.y) + bleedPx);
-              marqueeEl.setAttribute('width', Math.abs(c.x - state.startPoint.x));
-              marqueeEl.setAttribute('height', Math.abs(c.y - state.startPoint.y));
+              const page = getActivePage();
+              const { pageWidth: w, pageHeight: h, bleedPx } = getWorkspaceMetricsForPaper(getPageOrientation(page));
+              const left = Math.min(state.startPoint.x, c.x);
+              const top = Math.min(state.startPoint.y, c.y);
+              const right = Math.max(state.startPoint.x, c.x);
+              const bottom = Math.max(state.startPoint.y, c.y);
+              const startCanvas = toCanvasPoint({ x: left, y: top }, w, h, bleedPx);
+              const endCanvas = toCanvasPoint({ x: right, y: bottom }, w, h, bleedPx);
+              marqueeEl.setAttribute('x', startCanvas.x);
+              marqueeEl.setAttribute('y', startCanvas.y);
+              marqueeEl.setAttribute('width', endCanvas.x - startCanvas.x);
+              marqueeEl.setAttribute('height', endCanvas.y - startCanvas.y);
             }
             return;
           }
@@ -1500,22 +1637,46 @@
             const tl = document.getElementById(`tempLine-${state.currentPageIndex}`);
             const tr = document.getElementById(`tempRect-${state.currentPageIndex}`);
             if (state.tool === 'line' && tl && tr) {
+              const page = getActivePage();
+              const { pageWidth: w, pageHeight: h, bleedPx } = getWorkspaceMetricsForPaper(getPageOrientation(page));
+              const startCanvas = toCanvasPoint(state.startPoint, w, h, bleedPx);
+              const currentCanvas = toCanvasPoint(c, w, h, bleedPx);
               tl.classList.remove('hidden');
-              tl.setAttribute('x1', state.startPoint.x + bleedPx);
-              tl.setAttribute('y1', state.startPoint.y + bleedPx);
-              tl.setAttribute('x2', c.x + bleedPx);
-              tl.setAttribute('y2', c.y + bleedPx);
+              tl.setAttribute('x1', startCanvas.x);
+              tl.setAttribute('y1', startCanvas.y);
+              tl.setAttribute('x2', currentCanvas.x);
+              tl.setAttribute('y2', currentCanvas.y);
               if (state.isFilling) {
                 tr.classList.remove('hidden');
-                tr.setAttribute('x', Math.min(state.startPoint.x, c.x) + bleedPx);
-                tr.setAttribute('y', Math.min(state.startPoint.y, c.y) + bleedPx);
-                tr.setAttribute('width', Math.abs(c.x - state.startPoint.x));
-                tr.setAttribute('height', Math.abs(c.y - state.startPoint.y));
+                const left = Math.min(state.startPoint.x, c.x);
+                const top = Math.min(state.startPoint.y, c.y);
+                const right = Math.max(state.startPoint.x, c.x);
+                const bottom = Math.max(state.startPoint.y, c.y);
+                const start = toCanvasPoint({ x: left, y: top }, w, h, bleedPx);
+                const end = toCanvasPoint({ x: right, y: bottom }, w, h, bleedPx);
+                tr.setAttribute('x', start.x);
+                tr.setAttribute('y', start.y);
+                tr.setAttribute('width', end.x - start.x);
+                tr.setAttribute('height', end.y - start.y);
               } else {
                 tr.classList.add('hidden');
               }
             } 
-            else if ((state.tool === 'rect' || state.tool === 'dot' || state.tool === 'cross' || state.tool === 'label') && tr) { tr.classList.remove('hidden'); tr.setAttribute('x', Math.min(state.startPoint.x, c.x) + bleedPx); tr.setAttribute('y', Math.min(state.startPoint.y, c.y) + bleedPx); tr.setAttribute('width', Math.abs(c.x - state.startPoint.x)); tr.setAttribute('height', Math.abs(c.y - state.startPoint.y)); }
+            else if ((state.tool === 'rect' || state.tool === 'dot' || state.tool === 'cross' || state.tool === 'label') && tr) {
+              const page = getActivePage();
+              const { pageWidth: w, pageHeight: h, bleedPx } = getWorkspaceMetricsForPaper(getPageOrientation(page));
+              tr.classList.remove('hidden');
+              const left = Math.min(state.startPoint.x, c.x);
+              const top = Math.min(state.startPoint.y, c.y);
+              const right = Math.max(state.startPoint.x, c.x);
+              const bottom = Math.max(state.startPoint.y, c.y);
+              const start = toCanvasPoint({ x: left, y: top }, w, h, bleedPx);
+              const end = toCanvasPoint({ x: right, y: bottom }, w, h, bleedPx);
+              tr.setAttribute('x', start.x);
+              tr.setAttribute('y', start.y);
+              tr.setAttribute('width', end.x - start.x);
+              tr.setAttribute('height', end.y - start.y);
+            }
           }
           if (state.isModifying && state.dragElementIndex !== null) {
             const el = state.pages[state.currentPageIndex].elements[state.dragElementIndex];
