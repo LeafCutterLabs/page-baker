@@ -397,8 +397,7 @@
         const axisOrigin = originMode === 'center'
           ? bleedPx + (sheetSize / 2)
           : bleedPx;
-        const imperialInches = isInch ? (state.gridSize / PPI) : 0;
-        const isDecimalImperial = isInch && Math.abs(imperialInches - 0.2) < 0.01;
+        const isDecimalImperial = isDecimalImperialRuler();
 
         // Normalize the ruler origin once, then let tick cadence vary by preset family.
         const tickStepPx = isMetricMode()
@@ -803,6 +802,10 @@
       function formatMetricValue(value) {
         const rounded = Math.round(value);
         return Math.abs(value - rounded) < 0.001 ? `${rounded}` : `${Math.round(value * 10) / 10}`;
+      }
+
+      function isDecimalImperialRuler() {
+        return state.unit === 'in' && Math.abs((state.gridSize / PPI) - 0.2) < 0.01;
       }
 
       function updateCoordinateHud(point) {
