@@ -22,7 +22,7 @@
         startPoint: null, dragElementIndex: null, selectedIndices: [], modifyHandleType: null,
         gridVisible: true, rulerVisible: true, gridOffset: { x: 0, y: 0 },
         viewMode: 'canvas', bleedUnits: 1, orientation: 'portrait',
-        bleedVisible: true,
+        bleedVisible: true, gridCenterVisible: true,
         notebookLayout: { cols: 1, pageWidth: 280 },
         lastCanvasPageIndex: null,
         lastSnappedCoords: null,
@@ -544,20 +544,22 @@
           elG.appendChild(l);
         });
 
-        // Emphasize the true page center independently of grid spacing.
-        const centerX = bleedPx + (sheetW / 2);
-        const centerY = bleedPx + (sheetH / 2);
-        const centerV = document.createElementNS("http://www.w3.org/2000/svg", "line");
-        centerV.setAttribute("x1", centerX); centerV.setAttribute("y1", 0);
-        centerV.setAttribute("x2", centerX); centerV.setAttribute("y2", h);
-        centerV.setAttribute("class", "grid-center-guide");
-        elG.appendChild(centerV);
+        if (state.gridCenterVisible) {
+          // Emphasize the true page center independently of grid spacing.
+          const centerX = bleedPx + (sheetW / 2);
+          const centerY = bleedPx + (sheetH / 2);
+          const centerV = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          centerV.setAttribute("x1", centerX); centerV.setAttribute("y1", 0);
+          centerV.setAttribute("x2", centerX); centerV.setAttribute("y2", h);
+          centerV.setAttribute("class", "grid-center-guide");
+          elG.appendChild(centerV);
 
-        const centerH = document.createElementNS("http://www.w3.org/2000/svg", "line");
-        centerH.setAttribute("x1", 0); centerH.setAttribute("y1", centerY);
-        centerH.setAttribute("x2", w); centerH.setAttribute("y2", centerY);
-        centerH.setAttribute("class", "grid-center-guide");
-        elG.appendChild(centerH);
+          const centerH = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          centerH.setAttribute("x1", 0); centerH.setAttribute("y1", centerY);
+          centerH.setAttribute("x2", w); centerH.setAttribute("y2", centerY);
+          centerH.setAttribute("class", "grid-center-guide");
+          elG.appendChild(centerH);
+        }
       }
 
       function getElementHandles(el, bleedPx) {
@@ -956,6 +958,13 @@
         state.bleedVisible = !state.bleedVisible;
         const btn = document.getElementById('bleedToggle');
         if(btn) { btn.classList.toggle('bg-[#C8A46A]', state.bleedVisible); btn.classList.toggle('text-white', state.bleedVisible); }
+        window.renderWorkspace();
+      };
+
+      window.toggleCenterGuide = function() {
+        state.gridCenterVisible = !state.gridCenterVisible;
+        const btn = document.getElementById('centerGuideToggle');
+        if (btn) { btn.classList.toggle('bg-[#C8A46A]', state.gridCenterVisible); btn.classList.toggle('text-white', state.gridCenterVisible); }
         window.renderWorkspace();
       };
 
