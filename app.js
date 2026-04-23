@@ -407,6 +407,28 @@
         const tickPositions = buildAxisTickPositions(size, axisOrigin, tickStepPx, originMode)
           .filter((i) => i >= -0.1 && i <= size + 0.1);
 
+        if (metricGridPreset) {
+          // 4mm / 5mm / 6mm presets intentionally stay tick-only regardless of paper unit.
+          tickPositions.forEach((i) => {
+            const rel = (i - axisOrigin) / unitScale;
+            const isZero = Math.abs(rel) < 0.01;
+            const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            const tickSize = isZero ? 20 : 8;
+
+            if (orientation === 'horizontal') {
+              line.setAttribute("x1", i); line.setAttribute("x2", i);
+              line.setAttribute("y1", rulerOffset - tickSize); line.setAttribute("y2", rulerOffset);
+            } else {
+              line.setAttribute("y1", i); line.setAttribute("y2", i);
+              line.setAttribute("x1", rulerOffset - tickSize); line.setAttribute("x2", rulerOffset);
+            }
+
+            line.setAttribute("class", isZero ? "ruler-center-marker" : "ruler-tick");
+            svg.appendChild(line);
+          });
+          return;
+        }
+
         if (isMetricMode()) {
           const metricStepPx = getMetricGridStepPx();
           // Metric rulers stay unlabeled; the grid and center axes carry the numeric reference.
@@ -492,7 +514,7 @@
           line.setAttribute("class", isZero ? "ruler-center-marker" : (isHalf ? "ruler-mini-tick" : "ruler-tick"));
           svg.appendChild(line);
 
-          if (!metricGridPreset && isMajor) {
+          if (isMajor) {
             const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
             text.setAttribute("class", "ruler-label");
             text.textContent = Math.round(rel);
