@@ -427,18 +427,6 @@
 
             line.setAttribute("class", isZero ? "ruler-center-marker" : (isHalf ? "ruler-mini-tick" : "ruler-tick"));
             svg.appendChild(line);
-
-            if (isMajor) {
-              const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-              text.setAttribute("class", "ruler-label");
-              text.textContent = formatMetricValue(relMm);
-              if (orientation === 'horizontal') {
-                text.setAttribute("x", i + 2); text.setAttribute("y", 10);
-              } else {
-                text.setAttribute("x", 2); text.setAttribute("y", i + 8);
-              }
-              svg.appendChild(text);
-            }
           });
           return;
         }
@@ -794,7 +782,10 @@
 
       function toCanvasPoint(point, pageWidth, pageHeight, bleedPx) {
         const origin = getCanvasPageOrigin(pageWidth, pageHeight, bleedPx);
-        return { x: origin.x + point.x, y: origin.y + point.y };
+        // Metric keeps a Cartesian Y axis; imperial remains screen-style Y down.
+        return isMetricMode()
+          ? { x: origin.x + point.x, y: origin.y - point.y }
+          : { x: origin.x + point.x, y: origin.y + point.y };
       }
 
       function getGridStepPx() {
@@ -1253,7 +1244,9 @@
         const originMode = getGridOriginMode();
         const origin = getCanvasPageOrigin(sheetW, sheetH, bleedPx, originMode);
         const fx = Math.round((rawX - origin.x) / step) * step;
-        const fy = Math.round((rawY - origin.y) / step) * step;
+        const fy = isMetricMode()
+          ? Math.round((origin.y - rawY) / step) * step
+          : Math.round((rawY - origin.y) / step) * step;
 
         const dot = document.getElementById(`snapDot-${state.currentPageIndex}`);
         if (dot) {
