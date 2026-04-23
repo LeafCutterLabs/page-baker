@@ -398,7 +398,6 @@
           ? bleedPx + (sheetSize / 2)
           : bleedPx;
         const isDecimalImperial = isDecimalImperialRuler();
-        const metricGridPreset = isMetricGridPreset();
 
         // Normalize the ruler origin once, then let tick cadence vary by preset family.
         const tickStepPx = isMetricMode()
@@ -407,31 +406,8 @@
         const tickPositions = buildAxisTickPositions(size, axisOrigin, tickStepPx, originMode)
           .filter((i) => i >= -0.1 && i <= size + 0.1);
 
-        if (metricGridPreset) {
-          // 4mm / 5mm / 6mm presets intentionally stay tick-only regardless of paper unit.
-          tickPositions.forEach((i) => {
-            const rel = (i - axisOrigin) / unitScale;
-            const isZero = Math.abs(rel) < 0.01;
-            const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-            const tickSize = isZero ? 20 : 8;
-
-            if (orientation === 'horizontal') {
-              line.setAttribute("x1", i); line.setAttribute("x2", i);
-              line.setAttribute("y1", rulerOffset - tickSize); line.setAttribute("y2", rulerOffset);
-            } else {
-              line.setAttribute("y1", i); line.setAttribute("y2", i);
-              line.setAttribute("x1", rulerOffset - tickSize); line.setAttribute("x2", rulerOffset);
-            }
-
-            line.setAttribute("class", isZero ? "ruler-center-marker" : "ruler-tick");
-            svg.appendChild(line);
-          });
-          return;
-        }
-
         if (isMetricMode()) {
-          const metricStepPx = getMetricGridStepPx();
-          // Metric rulers stay unlabeled; the grid and center axes carry the numeric reference.
+          // Metric rulers stay unlabeled and use the page midpoint as the true zero axis.
           tickPositions.forEach((i) => {
             const relMm = (i - axisOrigin) / unitScale;
             const isZero = Math.abs(relMm) < 0.01;
@@ -555,17 +531,17 @@
 
         if (state.gridCenterVisible) {
           // Emphasize the true page center independently of grid spacing.
-          const centerX = bleedPx + (sheetW / 2);
-          const centerY = bleedPx + (sheetH / 2);
+          const zeroX = bleedPx + (sheetW / 2);
+          const zeroY = bleedPx + (sheetH / 2);
           const centerV = document.createElementNS("http://www.w3.org/2000/svg", "line");
-          centerV.setAttribute("x1", centerX); centerV.setAttribute("y1", 0);
-          centerV.setAttribute("x2", centerX); centerV.setAttribute("y2", h);
+          centerV.setAttribute("x1", zeroX); centerV.setAttribute("y1", 0);
+          centerV.setAttribute("x2", zeroX); centerV.setAttribute("y2", h);
           centerV.setAttribute("class", "grid-center-guide");
           elG.appendChild(centerV);
 
           const centerH = document.createElementNS("http://www.w3.org/2000/svg", "line");
-          centerH.setAttribute("x1", 0); centerH.setAttribute("y1", centerY);
-          centerH.setAttribute("x2", w); centerH.setAttribute("y2", centerY);
+          centerH.setAttribute("x1", 0); centerH.setAttribute("y1", zeroY);
+          centerH.setAttribute("x2", w); centerH.setAttribute("y2", zeroY);
           centerH.setAttribute("class", "grid-center-guide");
           elG.appendChild(centerH);
         }
@@ -824,10 +800,6 @@
 
       function isDecimalImperialRuler() {
         return state.unit === 'in' && Math.abs((state.gridSize / PPI) - 0.2) < 0.01;
-      }
-
-      function isMetricGridPreset() {
-        return [4, 5, 6].some((allowedMm) => Math.abs((state.gridSize / PMM) - allowedMm) < 0.01);
       }
 
       function updateCoordinateHud(point) {
